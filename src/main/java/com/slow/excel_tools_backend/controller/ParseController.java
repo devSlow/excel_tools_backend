@@ -1,6 +1,7 @@
 package com.slow.excel_tools_backend.controller;
 
 import com.slow.excel_tools_backend.common.Result;
+import com.slow.excel_tools_backend.entity.ExcelParseResult;
 import com.slow.excel_tools_backend.entity.Task;
 import com.slow.excel_tools_backend.service.ExcelParseService;
 import com.slow.excel_tools_backend.service.ParseService;
@@ -44,18 +45,18 @@ public class ParseController {
     }
 
     /**
-     * Excel 文件导入解析接口
+     * Excel 文件导入解析接口（支持多 Sheet）
      * <p>
-     * 上传 .xlsx/.xls 文件，自动读取表头和数据，转为结构化数据。
+     * 上传 .xlsx/.xls 文件，遍历所有 Sheet，返回每个 Sheet 的 sheetName + columns + rows。
      * 文件同时备份至 MinIO 存储。
      * </p>
      *
      * @param file 上传的 Excel 文件（multipart/form-data）
-     * @return 解析后的任务结构（columns + rows）
+     * @return 多 Sheet 解析结果
      */
     @PostMapping("/excel")
-    public Result<Task> parseExcel(MultipartFile file) {
-        Task task = excelParseService.parseExcel(file);
-        return Result.ok(task);
+    public Result<ExcelParseResult> parseExcel(MultipartFile file) {
+        ExcelParseResult result = excelParseService.parseExcel(file);
+        return Result.ok(result);
     }
 }

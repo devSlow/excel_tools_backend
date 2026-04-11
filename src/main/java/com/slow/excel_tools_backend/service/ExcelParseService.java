@@ -4,9 +4,10 @@ import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.event.AnalysisEventListener;
 import com.slow.excel_tools_backend.common.BusinessException;
-import com.slow.excel_tools_backend.entity.ColumnDefine;
-import com.slow.excel_tools_backend.entity.Task;
 import com.slow.excel_tools_backend.config.MinioConfig;
+import com.slow.excel_tools_backend.entity.ColumnDefine;
+import com.slow.excel_tools_backend.entity.ExcelParseResult;
+import com.slow.excel_tools_backend.entity.SheetData;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,7 +24,7 @@ import java.util.UUID;
 /**
  * Excel 文件解析服务
  * <p>
- * 读取上传的 Excel 文件，解析为统一的 columns + rows 结构
+ * 读取上传的 Excel 文件，支持多 Sheet 解析，返回每个 Sheet 的 sheetName + columns + rows
  * </p>
  */
 @Slf4j
@@ -35,18 +36,18 @@ public class ExcelParseService {
     private final MinioConfig minioConfig;
 
     /**
-     * 解析上传的 Excel 文件
+     * 解析上传的 Excel 文件（多 Sheet）
      * <p>
      * 1. 校验文件格式
      * 2. 上传至 MinIO 备份
-     * 3. 使用 EasyExcel 读取表头和数据
-     * 4. 转换为 columns + rows 结构返回
+     * 3. 遍历所有 Sheet，逐个解析表头和数据
+     * 4. 返回 ExcelParseResult（含文件名和各 Sheet 解析结果）
      * </p>
      *
      * @param file 上传的 Excel 文件
-     * @return 解析后的任务结构
+     * @return 多 Sheet 解析结果
      */
-    public Task parseExcel(MultipartFile file) {
+    public ExcelParseResult parseExcel(MultipartFile file) {
         // 校验文件
         if (file == null || file.isEmpty()) {
             throw new BusinessException(4001, "上传文件不能为空");
@@ -65,36 +66,106 @@ public class ExcelParseService {
             throw new BusinessException(4003, "文件读取失败");
         }
 
-        // 使用 EasyExcel 解析
+        // 获取 Sheet 总数
+        int sheetCount;
+        try (InputStream is = file.getInputStream()) {
+            sheetCount = EasyExcel.read(is).build().excelExecutor().sheetList().size();
+        } catch (Exception e) {
+            throw new BusinessException(4004, "Excel 文件解析失败");
+        }
+
+        // 逐 Sheet 解析
+        List<SheetData> sheets = new ArrayList<>();
+        for (int i = 0; i < sheetCount; i++) {
+            SheetData sheetData = parseSheet(file, i);
+            if (sheetData != null) {
+                sheets.add(sheetData);
+            }
+        }
+
+        if (sheets.isEmpty()) {
+            throw new BusinessException(4005, "Excel 文件无有效数据");
+        }
+
+        ExcelParseResult result = new ExcelParseResult();
+        result.setFileName(originalName);
+        result.setSheets(sheets);
+        return result;
+    }
+
+    /**
+     * 解析单个 Sheet
+     *
+     * @param file     Excel 文件
+     * @param sheetIdx Sheet 索引（从0开始）
+     * @return Sheet 解析结果，无数据时返回 null
+     */
+    private SheetData parseSheet(MultipartFile file, int sheetIdx) {
         List<Map<Integer, String>> dataList = new ArrayList<>();
+        String[] sheetNameHolder = new String[1];
+
         try (InputStream is = file.getInputStream()) {
             EasyExcel.read(is, new AnalysisEventListener<Map<Integer, String>>() {
 
                 @Override
                 public void invokeHeadMap(Map<Integer, String> headMap, AnalysisContext context) {
-                    // 表头行也会触发 invoke，第一行即为表头
+                    // 记录表头（第一行）
                 }
 
                 @Override
                 public void invoke(Map<Integer, String> data, AnalysisContext context) {
+                    // 首次调用时记录 Sheet 名称
+                    if (sheetNameHolder[0] == null) {
+                        sheetNameHolder[0] = context.readSheetHolder().getSheetName();
+                    }
                     dataList.add(data);
                 }
 
                 @Override
                 public void doAfterAllAnalysed(AnalysisContext context) {
-                    log.info("Excel 解析完成，共 {} 行数据", dataList.size());
+                    log.info("Sheet[{}] 解析完成，共 {} 行数据", sheetIdx, dataList.size());
                 }
-            }).sheet().doRead();
+            }).sheet(sheetIdx).doRead();
         } catch (IOException e) {
-            throw new BusinessException(4004, "Excel 文件解析失败");
+            log.warn("Sheet[{}] 解析异常", sheetIdx, e);
+            return null;
         }
 
         if (dataList.isEmpty()) {
-            throw new BusinessException(4005, "Excel 文件无有效数据");
+            return null;
         }
 
-        // 第一行作为表头，构建列定义
+        // 第一行作为表头
         Map<Integer, String> headerRow = dataList.remove(0);
+        List<ColumnDefine> columns = buildColumns(headerRow);
+
+        // 构建行数据
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<Integer, String> data : dataList) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            for (int j = 0; j < columns.size(); j++) {
+                String val = data.get(j);
+                row.put(columns.get(j).getName(), val != null ? val.trim() : "");
+            }
+            rows.add(row);
+        }
+
+        // 空表头且无数据则跳过
+        if (columns.isEmpty() && rows.isEmpty()) {
+            return null;
+        }
+
+        SheetData sheetData = new SheetData();
+        sheetData.setSheetName(sheetNameHolder[0] != null ? sheetNameHolder[0] : "Sheet" + (sheetIdx + 1));
+        sheetData.setColumns(columns);
+        sheetData.setRows(rows);
+        return sheetData;
+    }
+
+    /**
+     * 根据表头行构建列定义列表
+     */
+    private List<ColumnDefine> buildColumns(Map<Integer, String> headerRow) {
         List<ColumnDefine> columns = new ArrayList<>();
         for (Map.Entry<Integer, String> entry : headerRow.entrySet()) {
             ColumnDefine col = new ColumnDefine();
@@ -106,24 +177,7 @@ public class ExcelParseService {
             }
             columns.set(entry.getKey(), col);
         }
-        // 移除空位
         columns.removeIf(c -> c == null);
-
-        // 构建行数据
-        List<Map<String, Object>> rows = new ArrayList<>();
-        for (Map<Integer, String> data : dataList) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            for (int i = 0; i < columns.size(); i++) {
-                String val = data.get(i);
-                row.put(columns.get(i).getName(), val != null ? val.trim() : "");
-            }
-            rows.add(row);
-        }
-
-        Task task = new Task();
-        task.setTitle(originalName.substring(0, originalName.lastIndexOf(".")));
-        task.setColumns(columns);
-        task.setRows(rows);
-        return task;
+        return columns;
     }
 }
