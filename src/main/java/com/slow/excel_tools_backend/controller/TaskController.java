@@ -106,4 +106,22 @@ public class TaskController {
     public void export(@PathVariable Long id, HttpServletResponse response) throws IOException {
         taskService.exportExcel(id, getUserId(), response);
     }
+
+    /**
+     * 按指定列分组导出多 Sheet Excel
+     * <p>
+     * 根据分组列的值将数据拆分，每个值生成一个独立 Sheet。
+     * 例如按"村庄"分组，黄香村一个 Sheet，齐村村一个 Sheet。
+     * </p>
+     *
+     * @param id           任务ID
+     * @param groupByField 分组列名（如"村庄"）
+     * @param response     HTTP 响应
+     */
+    @GetMapping("/{id}/export/group")
+    public void exportGroupBy(@PathVariable Long id,
+                              @RequestParam String groupByField,
+                              HttpServletResponse response) throws IOException {
+        taskService.exportExcelGroupBy(id, getUserId(), groupByField, response);
+    }
 }

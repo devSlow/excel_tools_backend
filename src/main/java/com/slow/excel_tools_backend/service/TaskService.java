@@ -78,4 +78,17 @@ public interface TaskService {
      * @param response HTTP 响应
      */
     void exportExcel(Long id, Long userId, HttpServletResponse response) throws IOException;
+
+    /**
+     * 按指定列分组导出多 Sheet Excel
+     * <p>
+     * 根据分组列的值将行数据拆分，每个值生成一个独立 Sheet
+     * </p>
+     *
+     * @param id           任务ID
+     * @param userId       用户ID
+     * @param groupByField 分组列名（如"村庄"）
+     * @param response     HTTP 响应
+     */
+    void exportExcelGroupBy(Long id, Long userId, String groupByField, HttpServletResponse response) throws IOException;
 }
