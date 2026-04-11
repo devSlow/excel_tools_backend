@@ -10,6 +10,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 文本解析服务实现类
+ */
 @Service
 public class ParseServiceImpl implements ParseService {
 
@@ -19,6 +22,7 @@ public class ParseServiceImpl implements ParseService {
             throw new IllegalArgumentException("文本内容不能为空");
         }
 
+        // 按行拆分
         String[] lines = text.split("\n");
         List<String[]> parsedLines = new ArrayList<>();
         int maxCols = 0;
@@ -39,13 +43,16 @@ public class ParseServiceImpl implements ParseService {
             throw new IllegalArgumentException("未解析到有效数据");
         }
 
+        // 构建列定义
         List<ColumnDefine> columns = new ArrayList<>();
         if (maxCols == 1) {
+            // 单列数据（如名单），默认列名为"姓名"
             ColumnDefine col = new ColumnDefine();
             col.setName("姓名");
             col.setType("text");
             columns.add(col);
         } else {
+            // 多列数据，第一行作为表头
             String[] headerLine = parsedLines.get(0);
             for (String h : headerLine) {
                 ColumnDefine col = new ColumnDefine();
@@ -56,6 +63,7 @@ public class ParseServiceImpl implements ParseService {
             parsedLines.remove(0);
         }
 
+        // 构建行数据
         List<Map<String, Object>> rows = new ArrayList<>();
         for (String[] cols : parsedLines) {
             Map<String, Object> row = new LinkedHashMap<>();
@@ -71,6 +79,9 @@ public class ParseServiceImpl implements ParseService {
         return task;
     }
 
+    /**
+     * 分隔符识别优先级：Tab > 逗号 > 多空格 > 单空格
+     */
     private String[] splitLine(String line) {
         if (line.contains("\t")) {
             return line.split("\t");
@@ -78,6 +89,7 @@ public class ParseServiceImpl implements ParseService {
         if (line.contains(",")) {
             return line.split(",");
         }
+        // 2个及以上连续空格作为分隔符
         if (line.contains("  ")) {
             return line.split("\\s{2,}");
         }

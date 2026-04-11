@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 数据任务服务实现类
+ */
 @Service
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
@@ -35,6 +38,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public Task getById(Long id, Long userId) {
         Task task = taskMapper.selectById(id);
+        // 校验任务是否存在且属于当前用户
         if (task == null || !task.getUserId().equals(userId)) {
             throw new IllegalArgumentException("任务不存在或无权访问");
         }
@@ -67,8 +71,10 @@ public class TaskServiceImpl implements TaskService {
     public Map<String, Object> stats(Long id, Long userId) {
         Task task = getById(id, userId);
         Map<String, Object> result = new LinkedHashMap<>();
+        // 统计总行数
         result.put("total", task.getRows() != null ? task.getRows().size() : 0);
 
+        // 按列统计各值的数量
         if (task.getColumns() != null && task.getRows() != null) {
             for (ColumnDefine col : task.getColumns()) {
                 Map<String, Integer> countMap = new LinkedHashMap<>();
@@ -87,11 +93,13 @@ public class TaskServiceImpl implements TaskService {
     public void exportExcel(Long id, Long userId, HttpServletResponse response) throws IOException {
         Task task = getById(id, userId);
 
+        // 设置响应头
         String fileName = (task.getTitle() != null ? task.getTitle() : "export") + ".xlsx";
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setHeader("Content-Disposition",
                 "attachment;filename=" + URLEncoder.encode(fileName, "UTF-8"));
 
+        // 提取列名作为表头
         List<String> headers = new ArrayList<>();
         if (task.getColumns() != null) {
             for (ColumnDefine col : task.getColumns()) {
@@ -99,6 +107,7 @@ public class TaskServiceImpl implements TaskService {
             }
         }
 
+        // 构建行数据，按列顺序填充
         List<List<Object>> dataList = new ArrayList<>();
         if (task.getRows() != null) {
             for (Map<String, Object> row : task.getRows()) {
@@ -110,6 +119,7 @@ public class TaskServiceImpl implements TaskService {
             }
         }
 
+        // 使用 EasyExcel 写入响应流
         EasyExcel.write(response.getOutputStream())
                 .head(headers.stream().map(h -> {
                     List<String> head = new ArrayList<>();

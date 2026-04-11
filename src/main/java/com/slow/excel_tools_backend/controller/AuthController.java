@@ -12,6 +12,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 认证控制器
+ * <p>
+ * 处理微信小程序登录认证
+ * </p>
+ */
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -19,6 +25,15 @@ public class AuthController {
 
     private final UserService userService;
 
+    /**
+     * 微信小程序登录
+     * <p>
+     * 接收前端传入的微信 code，换取 openid 完成登录或自动注册
+     * </p>
+     *
+     * @param body 包含 code 字段的请求体
+     * @return 用户信息（userId、openid）
+     */
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody Map<String, String> body) {
         String code = body.get("code");
