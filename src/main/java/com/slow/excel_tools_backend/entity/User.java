@@ -3,36 +3,36 @@ package com.slow.excel_tools_backend.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import java.time.LocalDateTime;
 
 /**
- * 用户实体，对应 user 表
- * <p>
- * 通过微信小程序 openid 识别用户
- * </p>
+ * 用户实体
  */
 @Data
 @TableName("user")
+@ApiModel("用户")
 public class User {
 
-    /** 主键ID */
     @TableId(type = IdType.AUTO)
+    @ApiModelProperty("用户ID")
     private Long id;
 
-    /** 微信小程序 openid，唯一标识 */
+    @ApiModelProperty("微信openid")
     private String openid;
 
-    /** 用户昵称 */
+    @ApiModelProperty("昵称")
     private String nickname;
 
-    /** 用户头像 URL */
+    @ApiModelProperty("头像URL")
     private String avatar;
 
-    /** 创建时间，由数据库自动填充 */
+    @ApiModelProperty("创建时间")
     private LocalDateTime createdAt;
 
-    /** 更新时间，由数据库自动填充 */
+    @ApiModelProperty("更新时间")
     private LocalDateTime updatedAt;
 }
