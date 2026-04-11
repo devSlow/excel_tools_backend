@@ -1,5 +1,6 @@
 package com.slow.excel_tools_backend.service.impl;
 
+import com.slow.excel_tools_backend.common.BusinessException;
 import com.slow.excel_tools_backend.entity.ColumnDefine;
 import com.slow.excel_tools_backend.entity.Task;
 import com.slow.excel_tools_backend.service.ParseService;
@@ -19,7 +20,7 @@ public class ParseServiceImpl implements ParseService {
     @Override
     public Task parseText(String text) {
         if (text == null || text.trim().isEmpty()) {
-            throw new IllegalArgumentException("文本内容不能为空");
+            throw new BusinessException(1001, "文本内容不能为空");
         }
 
         // 按行拆分
@@ -40,7 +41,7 @@ public class ParseServiceImpl implements ParseService {
         }
 
         if (parsedLines.isEmpty()) {
-            throw new IllegalArgumentException("未解析到有效数据");
+            throw new BusinessException(1002, "未解析到有效数据");
         }
 
         // 构建列定义

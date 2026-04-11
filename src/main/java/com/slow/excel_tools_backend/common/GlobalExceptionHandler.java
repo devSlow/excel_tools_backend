@@ -11,7 +11,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 /**
  * 全局异常处理器
  * <p>
- * 捕获所有 Controller 层抛出的异常，统一返回 Result 格式响应
+ * 捕获所有 Controller 层抛出的异常，统一返回 Result 格式响应。
+ * 按优先级处理：业务异常 > 参数异常 > 兜底异常
  * </p>
  */
 @Slf4j
@@ -19,7 +20,20 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class GlobalExceptionHandler {
 
     /**
-     * 业务异常（参数校验、权限校验等）
+     * 业务异常
+     * <p>
+     * 业务逻辑中主动抛出的异常，如：任务不存在、无权访问、文本为空等
+     * </p>
+     */
+    @ExceptionHandler(BusinessException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleBusinessException(BusinessException e) {
+        log.warn("业务异常: code={}, msg={}", e.getCode(), e.getMessage());
+        return Result.fail(e.getCode(), e.getMessage());
+    }
+
+    /**
+     * 参数校验异常（IllegalArgumentException 兜底）
      */
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -37,7 +51,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 请求参数类型不匹配
+     * 请求参数类型不匹配（如路径参数需要 Long 但传了字符串）
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)

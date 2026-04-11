@@ -1,5 +1,6 @@
 package com.slow.excel_tools_backend.controller;
 
+import com.slow.excel_tools_backend.common.BusinessException;
 import com.slow.excel_tools_backend.common.Result;
 import com.slow.excel_tools_backend.entity.User;
 import com.slow.excel_tools_backend.service.UserService;
@@ -38,7 +39,7 @@ public class AuthController {
     public Result<Map<String, Object>> login(@RequestBody Map<String, String> body) {
         String code = body.get("code");
         if (code == null || code.isEmpty()) {
-            return Result.fail("code不能为空");
+            throw new BusinessException(3001, "登录code不能为空");
         }
 
         // TODO: 调用微信 API 用 code 换取 openid，暂时用 code 作为 openid

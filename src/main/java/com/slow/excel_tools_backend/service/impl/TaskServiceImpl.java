@@ -2,6 +2,7 @@ package com.slow.excel_tools_backend.service.impl;
 
 import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.slow.excel_tools_backend.common.BusinessException;
 import com.slow.excel_tools_backend.entity.ColumnDefine;
 import com.slow.excel_tools_backend.entity.Task;
 import com.slow.excel_tools_backend.mapper.TaskMapper;
@@ -38,9 +39,13 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public Task getById(Long id, Long userId) {
         Task task = taskMapper.selectById(id);
-        // 校验任务是否存在且属于当前用户
-        if (task == null || !task.getUserId().equals(userId)) {
-            throw new IllegalArgumentException("任务不存在或无权访问");
+        // 校验任务是否存在
+        if (task == null) {
+            throw new BusinessException(2001, "任务不存在");
+        }
+        // 校验任务是否属于当前用户
+        if (!task.getUserId().equals(userId)) {
+            throw new BusinessException(2002, "无权访问该任务");
         }
         return task;
     }
