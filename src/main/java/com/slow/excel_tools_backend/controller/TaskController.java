@@ -1,12 +1,12 @@
 package com.slow.excel_tools_backend.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.slow.excel_tools_backend.common.Result;
 import com.slow.excel_tools_backend.entity.Task;
 import com.slow.excel_tools_backend.service.TaskService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletResponse;
@@ -20,10 +20,13 @@ import java.util.Map;
 @Api(tags = "任务管理")
 @RestController
 @RequestMapping("/api/task")
-@RequiredArgsConstructor
 public class TaskController {
 
     private final TaskService taskService;
+
+    public TaskController(TaskService taskService) {
+        this.taskService = taskService;
+    }
 
     // TODO: 从请求头 token 中解析 userId，暂时硬编码
     private Long getUserId() {
@@ -32,8 +35,10 @@ public class TaskController {
 
     @ApiOperation("获取我的任务列表")
     @GetMapping
-    public Result<List<Task>> list() {
-        return Result.ok(taskService.listByUserId(getUserId()));
+    public Result<IPage<Task>> list(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return Result.ok(taskService.listByUserId(getUserId(), page, size));
     }
 
     @ApiOperation("创建新任务")

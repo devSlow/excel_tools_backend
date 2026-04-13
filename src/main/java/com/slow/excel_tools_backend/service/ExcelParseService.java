@@ -8,8 +8,8 @@ import com.slow.excel_tools_backend.config.MinioConfig;
 import com.slow.excel_tools_backend.entity.ColumnDefine;
 import com.slow.excel_tools_backend.entity.ExcelParseResult;
 import com.slow.excel_tools_backend.entity.SheetData;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,13 +27,18 @@ import java.util.UUID;
  * 读取上传的 Excel 文件，支持多 Sheet 解析，返回每个 Sheet 的 sheetName + columns + rows
  * </p>
  */
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class ExcelParseService {
+
+    private static final Logger log = LoggerFactory.getLogger(ExcelParseService.class);
 
     private final MinioService minioService;
     private final MinioConfig minioConfig;
+
+    public ExcelParseService(MinioService minioService, MinioConfig minioConfig) {
+        this.minioService = minioService;
+        this.minioConfig = minioConfig;
+    }
 
     /**
      * 解析上传的 Excel 文件（多 Sheet）

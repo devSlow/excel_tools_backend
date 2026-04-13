@@ -8,13 +8,14 @@ import com.alibaba.excel.write.metadata.style.WriteFont;
 import com.alibaba.excel.write.style.HorizontalCellStyleStrategy;
 import com.alibaba.excel.write.handler.WorkbookWriteHandler;
 import com.alibaba.excel.write.metadata.holder.WriteWorkbookHolder;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.slow.excel_tools_backend.common.BusinessException;
 import com.slow.excel_tools_backend.entity.ColumnDefine;
 import com.slow.excel_tools_backend.entity.Task;
 import com.slow.excel_tools_backend.mapper.TaskMapper;
 import com.slow.excel_tools_backend.service.TaskService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletResponse;
@@ -34,7 +35,6 @@ import org.apache.poi.ss.usermodel.VerticalAlignment;
  * 数据任务服务实现类
  */
 @Service
-@RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
 
     private static final HorizontalCellStyleStrategy CENTER_STYLE;
@@ -109,17 +109,35 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskMapper taskMapper;
 
+    public TaskServiceImpl(TaskMapper taskMapper) {
+        this.taskMapper = taskMapper;
+    }
+
     @Override
-    public List<Task> listByUserId(Long userId) {
+    public IPage<Task> listByUserId(Long userId, int page, int size) {
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Task::getUserId, userId)
                .orderByDesc(Task::getCreatedAt);
-        return taskMapper.selectList(wrapper);
+        IPage<Task> result = taskMapper.selectPage(new Page<>(page, size), wrapper);
+        
+        System.out.println("========== listByUserId ==========");
+        System.out.println("userId=" + userId + ", total=" + result.getTotal());
+        for (Task t : result.getRecords()) {
+            System.out.println("Task: id=" + t.getId() + ", title=" + t.getTitle() + 
+                ", columns=" + t.getColumns() + ", rows=" + t.getRows());
+        }
+        
+        return result;
     }
 
     @Override
     public Task getById(Long id, Long userId) {
         Task task = taskMapper.selectById(id);
+        System.out.println("========== getById ==========");
+        System.out.println("id=" + id + ", task=" + (task != null ? 
+            "title=" + task.getTitle() + ", columns=" + task.getColumns() + ", rows=" + task.getRows() 
+            : "null"));
+        
         // 校验任务是否存在
         if (task == null) {
             throw new BusinessException(2001, "任务不存在");
@@ -133,7 +151,27 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public Task create(Task task) {
+        System.out.println("========== TaskServiceImpl.create ==========");
+        System.out.println("task.title = " + task.getTitle());
+        System.out.println("task.columns = " + task.getColumns());
+        System.out.println("task.rows = " + task.getRows());
+        System.out.println("task.userId = " + task.getUserId());
+        
+        if (task.getCreatedAt() == null) {
+            task.setCreatedAt(java.time.LocalDateTime.now());
+        }
+        if (task.getUpdatedAt() == null) {
+            task.setUpdatedAt(java.time.LocalDateTime.now());
+        }
         taskMapper.insert(task);
+        
+        // 重新查询验证
+        Task saved = taskMapper.selectById(task.getId());
+        System.out.println("========== After Insert ==========");
+        System.out.println("saved.title = " + saved.getTitle());
+        System.out.println("saved.columns = " + saved.getColumns());
+        System.out.println("saved.rows = " + saved.getRows());
+        
         return task;
     }
 
@@ -141,8 +179,9 @@ public class TaskServiceImpl implements TaskService {
     public Task update(Long id, Long userId, Task update) {
         Task existing = getById(id, userId);
         existing.setTitle(update.getTitle());
-        existing.setColumns(update.getColumns());
-        existing.setRows(update.getRows());
+        existing.setColumnsList(update.getColumnsList());
+        existing.setRowsList(update.getRowsList());
+        existing.setUpdatedAt(java.time.LocalDateTime.now());
         taskMapper.updateById(existing);
         return existing;
     }
@@ -157,14 +196,18 @@ public class TaskServiceImpl implements TaskService {
     public Map<String, Object> stats(Long id, Long userId) {
         Task task = getById(id, userId);
         Map<String, Object> result = new LinkedHashMap<>();
+        
+        List<Map<String, Object>> rowsList = task.getRowsList();
+        List<ColumnDefine> columnsList = task.getColumnsList();
+        
         // 统计总行数
-        result.put("total", task.getRows() != null ? task.getRows().size() : 0);
+        result.put("total", rowsList != null ? rowsList.size() : 0);
 
         // 按列统计各值的数量
-        if (task.getColumns() != null && task.getRows() != null) {
-            for (ColumnDefine col : task.getColumns()) {
+        if (columnsList != null && rowsList != null) {
+            for (ColumnDefine col : columnsList) {
                 Map<String, Integer> countMap = new LinkedHashMap<>();
-                for (Map<String, Object> row : task.getRows()) {
+                for (Map<String, Object> row : rowsList) {
                     Object val = row.get(col.getName());
                     String key = val != null ? val.toString() : "空";
                     countMap.merge(key, 1, Integer::sum);
@@ -187,16 +230,18 @@ public class TaskServiceImpl implements TaskService {
 
         // 提取列名作为表头
         List<String> headers = new ArrayList<>();
-        if (task.getColumns() != null) {
-            for (ColumnDefine col : task.getColumns()) {
+        List<ColumnDefine> columnsList = task.getColumnsList();
+        if (columnsList != null) {
+            for (ColumnDefine col : columnsList) {
                 headers.add(col.getName());
             }
         }
 
         // 构建行数据，按列顺序填充
         List<List<Object>> dataList = new ArrayList<>();
-        if (task.getRows() != null) {
-            for (Map<String, Object> row : task.getRows()) {
+        List<Map<String, Object>> rowsList = task.getRowsList();
+        if (rowsList != null) {
+            for (Map<String, Object> row : rowsList) {
                 List<Object> rowData = new ArrayList<>();
                 for (String header : headers) {
                     rowData.add(row.getOrDefault(header, ""));
@@ -228,8 +273,9 @@ public class TaskServiceImpl implements TaskService {
 
         // 校验分组列是否存在
         List<String> headers = new ArrayList<>();
-        if (task.getColumns() != null) {
-            for (ColumnDefine col : task.getColumns()) {
+        List<ColumnDefine> columnsList = task.getColumnsList();
+        if (columnsList != null) {
+            for (ColumnDefine col : columnsList) {
                 headers.add(col.getName());
             }
         }
@@ -245,8 +291,9 @@ public class TaskServiceImpl implements TaskService {
 
         // 按分组列的值拆分行数据
         Map<String, List<Map<String, Object>>> groupedRows = new LinkedHashMap<>();
-        if (task.getRows() != null) {
-            for (Map<String, Object> row : task.getRows()) {
+        List<Map<String, Object>> rowsList = task.getRowsList();
+        if (rowsList != null) {
+            for (Map<String, Object> row : rowsList) {
                 Object val = row.get(groupByField);
                 String key = val != null ? val.toString() : "空";
                 groupedRows.computeIfAbsent(key, k -> new ArrayList<>()).add(row);

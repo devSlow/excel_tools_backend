@@ -18,7 +18,7 @@ import java.util.Map;
 public class ParseServiceImpl implements ParseService {
 
     @Override
-    public Task parseText(String text) {
+    public Task parseText(String text, String delimiter) {
         if (text == null || text.trim().isEmpty()) {
             throw new BusinessException(1001, "文本内容不能为空");
         }
@@ -33,7 +33,7 @@ public class ParseServiceImpl implements ParseService {
             if (line.isEmpty()) {
                 continue;
             }
-            String[] cols = splitLine(line);
+            String[] cols = splitLine(line, delimiter);
             if (cols.length > maxCols) {
                 maxCols = cols.length;
             }
@@ -75,20 +75,37 @@ public class ParseServiceImpl implements ParseService {
         }
 
         Task task = new Task();
-        task.setColumns(columns);
-        task.setRows(rows);
+        task.setColumnsList(columns);
+        task.setRowsList(rows);
         return task;
     }
 
     /**
-     * 分隔符识别优先级：Tab > 逗号 > 多空格 > 单空格
+     * 分隔符处理：优先使用指定分隔符，否则自动识别
      */
-    private String[] splitLine(String line) {
+    private String[] splitLine(String line, String delimiter) {
+        if (delimiter != null && !delimiter.isEmpty() && !delimiter.equals("auto")) {
+            // 使用指定分隔符
+            if (delimiter.equals("\\t")) {
+                return line.split("\t");
+            } else if (delimiter.equals(" ")) {
+                return line.split("\\s+");
+            } else {
+                return line.split(delimiter);
+            }
+        }
+        // 自动识别分隔符
         if (line.contains("\t")) {
             return line.split("\t");
         }
+        if (line.contains("+")) {
+            return line.split("\\+");
+        }
         if (line.contains(",")) {
             return line.split(",");
+        }
+        if (line.contains(";")) {
+            return line.split(";");
         }
         // 2个及以上连续空格作为分隔符
         if (line.contains("  ")) {

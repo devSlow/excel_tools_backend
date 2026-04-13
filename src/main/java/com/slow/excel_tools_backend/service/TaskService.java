@@ -1,5 +1,6 @@
 package com.slow.excel_tools_backend.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.slow.excel_tools_backend.entity.Task;
 
 import javax.servlet.http.HttpServletResponse;
@@ -16,9 +17,11 @@ public interface TaskService {
      * 获取指定用户的任务列表（按创建时间倒序）
      *
      * @param userId 用户ID
-     * @return 任务列表
+     * @param page   页码
+     * @param size   每页大小
+     * @return 任务分页结果
      */
-    List<Task> listByUserId(Long userId);
+    IPage<Task> listByUserId(Long userId, int page, int size);
 
     /**
      * 获取任务详情（含行列数据），校验用户权限

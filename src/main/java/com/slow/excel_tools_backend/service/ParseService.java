@@ -14,8 +14,9 @@ public interface ParseService {
      * 单列数据默认列名为"姓名"，多列数据取第一行作为表头。
      * </p>
      *
-     * @param text 原始文本内容
+     * @param text      原始文本内容
+     * @param delimiter 分隔符（为空时自动识别）
      * @return 解析后的任务结构（columns + rows）
      */
-    Task parseText(String text);
+    Task parseText(String text, String delimiter);
 }

@@ -2,7 +2,6 @@ package com.slow.excel_tools_backend.entity;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
-import lombok.Data;
 
 import java.util.List;
 import java.util.Map;
@@ -10,7 +9,6 @@ import java.util.Map;
 /**
  * 单个 Sheet 的解析结果
  */
-@Data
 @ApiModel("Sheet数据")
 public class SheetData {
 
@@ -22,4 +20,11 @@ public class SheetData {
 
     @ApiModelProperty("行数据")
     private List<Map<String, Object>> rows;
+
+    public String getSheetName() { return sheetName; }
+    public void setSheetName(String sheetName) { this.sheetName = sheetName; }
+    public List<ColumnDefine> getColumns() { return columns; }
+    public void setColumns(List<ColumnDefine> columns) { this.columns = columns; }
+    public List<Map<String, Object>> getRows() { return rows; }
+    public void setRows(List<Map<String, Object>> rows) { this.rows = rows; }
 }

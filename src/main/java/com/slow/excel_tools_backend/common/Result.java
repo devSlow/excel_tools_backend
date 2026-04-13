@@ -2,12 +2,10 @@ package com.slow.excel_tools_backend.common;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
-import lombok.Data;
 
 /**
  * 统一响应封装
  */
-@Data
 @ApiModel("统一响应结果")
 public class Result<T> {
 
@@ -21,6 +19,13 @@ public class Result<T> {
     private T data;
 
     private Result() {}
+
+    public int getCode() { return code; }
+    public void setCode(int code) { this.code = code; }
+    public String getMsg() { return msg; }
+    public void setMsg(String msg) { this.msg = msg; }
+    public T getData() { return data; }
+    public void setData(T data) { this.data = data; }
 
     public static <T> Result<T> ok() {
         return ok(null);
