@@ -3,6 +3,11 @@ package com.slow.excel_tools_backend.service.impl;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.metadata.WriteSheet;
+import com.alibaba.excel.write.metadata.style.WriteCellStyle;
+import com.alibaba.excel.write.metadata.style.WriteFont;
+import com.alibaba.excel.write.style.HorizontalCellStyleStrategy;
+import com.alibaba.excel.write.handler.WorkbookWriteHandler;
+import com.alibaba.excel.write.metadata.holder.WriteWorkbookHolder;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.slow.excel_tools_backend.common.BusinessException;
 import com.slow.excel_tools_backend.entity.ColumnDefine;
@@ -21,12 +26,86 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+
 /**
  * 数据任务服务实现类
  */
 @Service
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
+
+    private static final HorizontalCellStyleStrategy CENTER_STYLE;
+
+    static {
+        WriteCellStyle contentStyle = new WriteCellStyle();
+        contentStyle.setHorizontalAlignment(HorizontalAlignment.CENTER);
+        contentStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+        WriteCellStyle headStyle = new WriteCellStyle();
+        headStyle.setHorizontalAlignment(HorizontalAlignment.CENTER);
+        headStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        WriteFont headFont = new WriteFont();
+        headFont.setBold(true);
+        headStyle.setWriteFont(headFont);
+
+        CENTER_STYLE = new HorizontalCellStyleStrategy(headStyle, contentStyle);
+    }
+
+    /**
+     * 自适应列宽处理器：遍历每列取最大字符宽度，加上余量后设置列宽
+     */
+    private static class AutoColumnWidthHandler implements WorkbookWriteHandler {
+
+        @Override
+        public void afterWorkbookDispose(WriteWorkbookHolder writeWorkbookHolder) {
+            org.apache.poi.ss.usermodel.Workbook workbook = writeWorkbookHolder.getWorkbook();
+            for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                Sheet sheet = workbook.getSheetAt(i);
+                autoSizeSheet(sheet);
+            }
+        }
+
+        private void autoSizeSheet(Sheet sheet) {
+            int firstRowNum = sheet.getFirstRowNum();
+            int lastRowNum = sheet.getLastRowNum();
+            if (lastRowNum < firstRowNum) {
+                return;
+            }
+
+            int maxCol = 0;
+            for (int r = firstRowNum; r <= lastRowNum; r++) {
+                org.apache.poi.ss.usermodel.Row row = sheet.getRow(r);
+                if (row != null && row.getLastCellNum() > maxCol) {
+                    maxCol = row.getLastCellNum();
+                }
+            }
+
+            for (int c = 0; c < maxCol; c++) {
+                int maxLen = 0;
+                for (int r = firstRowNum; r <= lastRowNum; r++) {
+                    org.apache.poi.ss.usermodel.Row row = sheet.getRow(r);
+                    if (row == null) continue;
+                    org.apache.poi.ss.usermodel.Cell cell = row.getCell(c);
+                    if (cell == null) continue;
+                    String val = cell.getStringCellValue();
+                    if (val == null) continue;
+                    int len = 0;
+                    for (char ch : val.toCharArray()) {
+                        len += (ch > 127) ? 2 : 1;
+                    }
+                    if (len > maxLen) maxLen = len;
+                }
+                // 加4个字符余量，避免太挤
+                int width = (maxLen + 4) * 256;
+                if (width > 18000) width = 18000;
+                if (width < 2000) width = 2000;
+                sheet.setColumnWidth(c, width);
+            }
+        }
+    }
 
     private final TaskMapper taskMapper;
 
@@ -133,6 +212,8 @@ public class TaskServiceImpl implements TaskService {
                     head.add(h);
                     return head;
                 }).collect(Collectors.toList()))
+                .registerWriteHandler(CENTER_STYLE)
+                .registerWriteHandler(new AutoColumnWidthHandler())
                 .sheet("数据")
                 .doWrite(dataList);
     }
@@ -180,7 +261,11 @@ public class TaskServiceImpl implements TaskService {
         }).collect(Collectors.toList());
 
         // 使用 ExcelWriter 写入多个 Sheet
-        ExcelWriter writer = EasyExcel.write(response.getOutputStream()).head(headList).build();
+        ExcelWriter writer = EasyExcel.write(response.getOutputStream())
+                .head(headList)
+                .registerWriteHandler(CENTER_STYLE)
+                .registerWriteHandler(new AutoColumnWidthHandler())
+                .build();
         int sheetIdx = 0;
         for (Map.Entry<String, List<Map<String, Object>>> entry : groupedRows.entrySet()) {
             String sheetName = entry.getKey();
