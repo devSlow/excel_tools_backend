@@ -43,11 +43,14 @@ public class ParseController {
 
     @ApiOperation("文本智能解析")
     @PostMapping("/text")
-    public Result<Task> parseText(@RequestBody Map<String, String> body) {
+    public Result<Map<String, Object>> parseText(@RequestBody Map<String, String> body) {
         String text = body.get("text");
         String delimiter = body.get("delimiter");
         Task task = parseService.parseText(text, delimiter);
-        return Result.ok(task);
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("columns", task.getColumnsList());
+        result.put("data", task.getRowsList());
+        return Result.ok(result);
     }
 
     @ApiOperation("文本解析并直接导出Excel")
@@ -83,20 +86,29 @@ public class ParseController {
         response.setHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(fileName, "UTF-8"));
 
         List<String> headers = new ArrayList<>();
-        if (task.getColumnsList() != null) {
-            for (ColumnDefine col : task.getColumnsList()) {
-                headers.add(col.getName());
+        Object colsObj = task.getColumns();
+        if (colsObj instanceof List) {
+            for (Object item : (List<?>) colsObj) {
+                if (item instanceof ColumnDefine) {
+                    headers.add(((ColumnDefine) item).getName());
+                } else if (item instanceof Map) {
+                    headers.add((String) ((Map<?, ?>) item).get("name"));
+                }
             }
         }
 
         List<List<Object>> dataList = new ArrayList<>();
-        if (task.getRowsList() != null) {
-            for (Map<String, Object> row : task.getRowsList()) {
-                List<Object> rowData = new ArrayList<>();
-                for (String header : headers) {
-                    rowData.add(row.getOrDefault(header, ""));
+        Object rowsObj = task.getRows();
+        if (rowsObj instanceof List) {
+            for (Object rowObj : (List<?>) rowsObj) {
+                if (rowObj instanceof Map) {
+                    Map<String, Object> row = (Map<String, Object>) rowObj;
+                    List<Object> rowData = new ArrayList<>();
+                    for (String header : headers) {
+                        rowData.add(row.getOrDefault(header, ""));
+                    }
+                    dataList.add(rowData);
                 }
-                dataList.add(rowData);
             }
         }
 

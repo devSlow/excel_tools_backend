@@ -157,6 +157,14 @@ public class TaskServiceImpl implements TaskService {
         System.out.println("task.rows = " + task.getRows());
         System.out.println("task.userId = " + task.getUserId());
         
+        // 兼容前端传 name 和 data 的情况
+        if (task.getTitle() == null || task.getTitle().isEmpty()) {
+            task.setTitle("文本解析任务");
+        }
+        if (task.getRows() == null && task.getColumns() != null) {
+            // 前端可能把数据放在 columns 里，需要从 Task 实体的其他字段处理
+        }
+        
         if (task.getCreatedAt() == null) {
             task.setCreatedAt(java.time.LocalDateTime.now());
         }
@@ -179,8 +187,8 @@ public class TaskServiceImpl implements TaskService {
     public Task update(Long id, Long userId, Task update) {
         Task existing = getById(id, userId);
         existing.setTitle(update.getTitle());
-        existing.setColumnsList(update.getColumnsList());
-        existing.setRowsList(update.getRowsList());
+        existing.setColumns(update.getColumns());
+        existing.setRows(update.getRows());
         existing.setUpdatedAt(java.time.LocalDateTime.now());
         taskMapper.updateById(existing);
         return existing;
@@ -197,22 +205,34 @@ public class TaskServiceImpl implements TaskService {
         Task task = getById(id, userId);
         Map<String, Object> result = new LinkedHashMap<>();
         
-        List<Map<String, Object>> rowsList = task.getRowsList();
-        List<ColumnDefine> columnsList = task.getColumnsList();
+        Object rowsObj = task.getRows();
+        Object colsObj = task.getColumns();
+        List<Map<String, Object>> rowsList = rowsObj instanceof List ? (List<Map<String, Object>>) rowsObj : null;
+        List<String> columnNames = new ArrayList<>();
+        
+        if (colsObj instanceof List) {
+            for (Object item : (List<?>) colsObj) {
+                if (item instanceof ColumnDefine) {
+                    columnNames.add(((ColumnDefine) item).getName());
+                } else if (item instanceof Map) {
+                    columnNames.add((String) ((Map<?, ?>) item).get("name"));
+                }
+            }
+        }
         
         // 统计总行数
         result.put("total", rowsList != null ? rowsList.size() : 0);
 
         // 按列统计各值的数量
-        if (columnsList != null && rowsList != null) {
-            for (ColumnDefine col : columnsList) {
+        if (!columnNames.isEmpty() && rowsList != null) {
+            for (String colName : columnNames) {
                 Map<String, Integer> countMap = new LinkedHashMap<>();
                 for (Map<String, Object> row : rowsList) {
-                    Object val = row.get(col.getName());
+                    Object val = row.get(colName);
                     String key = val != null ? val.toString() : "空";
                     countMap.merge(key, 1, Integer::sum);
                 }
-                result.put(col.getName(), countMap);
+                result.put(colName, countMap);
             }
         }
         return result;
@@ -230,16 +250,21 @@ public class TaskServiceImpl implements TaskService {
 
         // 提取列名作为表头
         List<String> headers = new ArrayList<>();
-        List<ColumnDefine> columnsList = task.getColumnsList();
-        if (columnsList != null) {
-            for (ColumnDefine col : columnsList) {
-                headers.add(col.getName());
+        Object columnsObj = task.getColumns();
+        if (columnsObj instanceof List) {
+            for (Object item : (List<?>) columnsObj) {
+                if (item instanceof ColumnDefine) {
+                    headers.add(((ColumnDefine) item).getName());
+                } else if (item instanceof Map) {
+                    headers.add((String) ((Map<?, ?>) item).get("name"));
+                }
             }
         }
 
         // 构建行数据，按列顺序填充
         List<List<Object>> dataList = new ArrayList<>();
-        List<Map<String, Object>> rowsList = task.getRowsList();
+        Object rowsObj = task.getRows();
+        List<Map<String, Object>> rowsList = rowsObj instanceof List ? (List<Map<String, Object>>) rowsObj : null;
         if (rowsList != null) {
             for (Map<String, Object> row : rowsList) {
                 List<Object> rowData = new ArrayList<>();
@@ -273,10 +298,14 @@ public class TaskServiceImpl implements TaskService {
 
         // 校验分组列是否存在
         List<String> headers = new ArrayList<>();
-        List<ColumnDefine> columnsList = task.getColumnsList();
-        if (columnsList != null) {
-            for (ColumnDefine col : columnsList) {
-                headers.add(col.getName());
+        Object colsObj = task.getColumns();
+        if (colsObj instanceof List) {
+            for (Object item : (List<?>) colsObj) {
+                if (item instanceof ColumnDefine) {
+                    headers.add(((ColumnDefine) item).getName());
+                } else if (item instanceof Map) {
+                    headers.add((String) ((Map<?, ?>) item).get("name"));
+                }
             }
         }
         if (!headers.contains(groupByField)) {
@@ -291,7 +320,8 @@ public class TaskServiceImpl implements TaskService {
 
         // 按分组列的值拆分行数据
         Map<String, List<Map<String, Object>>> groupedRows = new LinkedHashMap<>();
-        List<Map<String, Object>> rowsList = task.getRowsList();
+        Object rowsObj = task.getRows();
+        List<Map<String, Object>> rowsList = rowsObj instanceof List ? (List<Map<String, Object>>) rowsObj : null;
         if (rowsList != null) {
             for (Map<String, Object> row : rowsList) {
                 Object val = row.get(groupByField);
