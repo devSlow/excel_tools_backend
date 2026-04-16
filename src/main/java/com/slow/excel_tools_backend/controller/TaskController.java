@@ -75,8 +75,10 @@ public class TaskController {
 
     @ApiOperation("导出Excel（单Sheet）")
     @GetMapping("/{id}/export")
-    public void export(@ApiParam("任务ID") @PathVariable Long id, HttpServletResponse response) throws IOException {
-        taskService.exportExcel(id, getUserId(), response);
+    public void export(@ApiParam("任务ID") @PathVariable Long id,
+                      @ApiParam("导出文件名") @RequestParam(required = false) String fileName,
+                      HttpServletResponse response) throws IOException {
+        taskService.exportExcel(id, getUserId(), fileName, response);
     }
 
     @ApiOperation("按列分组导出Excel（多Sheet）")

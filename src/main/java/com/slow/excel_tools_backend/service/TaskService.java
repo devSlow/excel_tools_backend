@@ -78,9 +78,10 @@ public interface TaskService {
      *
      * @param id       任务ID
      * @param userId   用户ID
+     * @param fileName 导出文件名（不含扩展名）
      * @param response HTTP 响应
      */
-    void exportExcel(Long id, Long userId, HttpServletResponse response) throws IOException;
+    void exportExcel(Long id, Long userId, String fileName, HttpServletResponse response) throws IOException;
 
     /**
      * 按指定列分组导出多 Sheet Excel

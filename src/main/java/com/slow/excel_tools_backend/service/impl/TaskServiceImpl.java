@@ -166,10 +166,10 @@ public class TaskServiceImpl implements TaskService {
         }
         
         if (task.getCreatedAt() == null) {
-            task.setCreatedAt(java.time.LocalDateTime.now());
+            task.setCreatedAt(java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).toLocalDateTime());
         }
         if (task.getUpdatedAt() == null) {
-            task.setUpdatedAt(java.time.LocalDateTime.now());
+            task.setUpdatedAt(java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).toLocalDateTime());
         }
         taskMapper.insert(task);
         
@@ -189,7 +189,7 @@ public class TaskServiceImpl implements TaskService {
         existing.setTitle(update.getTitle());
         existing.setColumns(update.getColumns());
         existing.setRows(update.getRows());
-        existing.setUpdatedAt(java.time.LocalDateTime.now());
+        existing.setUpdatedAt(java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).toLocalDateTime());
         taskMapper.updateById(existing);
         return existing;
     }
@@ -239,14 +239,18 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public void exportExcel(Long id, Long userId, HttpServletResponse response) throws IOException {
+    public void exportExcel(Long id, Long userId, String fileName, HttpServletResponse response) throws IOException {
         Task task = getById(id, userId);
 
+        String exportFileName = (fileName != null && !fileName.trim().isEmpty()) 
+            ? fileName 
+            : (task.getTitle() != null ? task.getTitle() : "export");
+        exportFileName += ".xlsx";
+        
         // 设置响应头
-        String fileName = (task.getTitle() != null ? task.getTitle() : "export") + ".xlsx";
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setHeader("Content-Disposition",
-                "attachment;filename=" + URLEncoder.encode(fileName, "UTF-8"));
+                "attachment;filename=" + URLEncoder.encode(exportFileName, "UTF-8"));
 
         // 提取列名作为表头
         List<String> headers = new ArrayList<>();
