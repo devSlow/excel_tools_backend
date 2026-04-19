@@ -1,6 +1,7 @@
 package com.slow.excel_tools_backend.controller;
 
 import com.alibaba.excel.EasyExcel;
+import com.slow.excel_tools_backend.common.ExcelStyleUtil;
 import com.slow.excel_tools_backend.common.Result;
 import com.slow.excel_tools_backend.entity.ColumnDefine;
 import com.slow.excel_tools_backend.entity.ExcelParseResult;
@@ -43,10 +44,11 @@ public class ParseController {
 
     @ApiOperation("文本智能解析")
     @PostMapping("/text")
-    public Result<Map<String, Object>> parseText(@RequestBody Map<String, String> body) {
-        String text = body.get("text");
-        String delimiter = body.get("delimiter");
-        Task task = parseService.parseText(text, delimiter);
+    public Result<Map<String, Object>> parseText(@RequestBody Map<String, Object> body) {
+        String text = (String) body.get("text");
+        String delimiter = (String) body.get("delimiter");
+        List<String> headers = body.get("headers") != null ? (List<String>) body.get("headers") : null;
+        Task task = parseService.parseText(text, delimiter, headers);
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("columns", task.getColumnsList());
         result.put("data", task.getRowsList());
@@ -58,8 +60,9 @@ public class ParseController {
     public void parseTextAndExport(
             @RequestParam String text,
             @RequestParam(required = false) String delimiter,
+            @RequestParam(required = false) List<String> headers,
             HttpServletResponse response) throws IOException {
-        Task task = parseService.parseText(text, delimiter);
+        Task task = parseService.parseText(text, delimiter, headers);
         
         exportTaskAsExcel(task, response, "解析数据");
     }
@@ -118,6 +121,8 @@ public class ParseController {
                     head.add(h);
                     return head;
                 }).collect(Collectors.toList()))
+                .registerWriteHandler(ExcelStyleUtil.CENTER_STYLE)
+                .registerWriteHandler(ExcelStyleUtil.createAutoColumnWidthHandler())
                 .sheet("数据")
                 .doWrite(dataList);
     }
@@ -151,6 +156,8 @@ public class ParseController {
                     head.add(h);
                     return head;
                 }).collect(Collectors.toList()))
+                .registerWriteHandler(ExcelStyleUtil.CENTER_STYLE)
+                .registerWriteHandler(ExcelStyleUtil.createAutoColumnWidthHandler())
                 .sheet(sheetData.getSheetName())
                 .doWrite(dataList);
     }

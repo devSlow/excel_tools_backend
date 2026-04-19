@@ -18,7 +18,7 @@ import java.util.Map;
 public class ParseServiceImpl implements ParseService {
 
     @Override
-    public Task parseText(String text, String delimiter) {
+    public Task parseText(String text, String delimiter, List<String> headers) {
         if (text == null || text.trim().isEmpty()) {
             throw new BusinessException(1001, "文本内容不能为空");
         }
@@ -45,26 +45,48 @@ public class ParseServiceImpl implements ParseService {
             throw new BusinessException(1002, "未解析到有效数据");
         }
 
-        // 第一行为表头
-        String[] header = parsedLines.remove(0);
+        List<ColumnDefine> columns;
+        List<Map<String, Object>> rows;
 
-        // 构建列定义
-        List<ColumnDefine> columns = new ArrayList<>();
-        for (String h : header) {
-            ColumnDefine col = new ColumnDefine();
-            col.setName(h.trim());
-            col.setType("text");
-            columns.add(col);
-        }
-
-        // 构建行数据
-        List<Map<String, Object>> rows = new ArrayList<>();
-        for (String[] cols : parsedLines) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            for (int i = 0; i < columns.size(); i++) {
-                row.put(columns.get(i).getName(), i < cols.length ? cols[i].trim() : "");
+        // 如果前端指定了表头，使用前端指定的表头
+        if (headers != null && !headers.isEmpty()) {
+            columns = new ArrayList<>();
+            for (String h : headers) {
+                ColumnDefine col = new ColumnDefine();
+                col.setName(h.trim());
+                col.setType("text");
+                columns.add(col);
             }
-            rows.add(row);
+
+            // 所有行均为数据行
+            rows = new ArrayList<>();
+            for (String[] cols : parsedLines) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (int i = 0; i < columns.size(); i++) {
+                    row.put(columns.get(i).getName(), i < cols.length ? cols[i].trim() : "");
+                }
+                rows.add(row);
+            }
+        } else {
+            // 未指定表头，使用第一行作为表头
+            String[] header = parsedLines.remove(0);
+
+            columns = new ArrayList<>();
+            for (String h : header) {
+                ColumnDefine col = new ColumnDefine();
+                col.setName(h.trim());
+                col.setType("text");
+                columns.add(col);
+            }
+
+            rows = new ArrayList<>();
+            for (String[] cols : parsedLines) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (int i = 0; i < columns.size(); i++) {
+                    row.put(columns.get(i).getName(), i < cols.length ? cols[i].trim() : "");
+                }
+                rows.add(row);
+            }
         }
 
         Task task = new Task();

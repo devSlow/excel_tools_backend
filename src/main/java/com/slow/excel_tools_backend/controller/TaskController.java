@@ -37,8 +37,15 @@ public class TaskController {
     @GetMapping
     public Result<IPage<Task>> list(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return Result.ok(taskService.listByUserId(getUserId(), page, size));
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword) {
+        return Result.ok(taskService.listByUserId(getUserId(), page, size, keyword));
+    }
+
+    @ApiOperation("获取我的任务总数")
+    @GetMapping("/count")
+    public Result<Long> count() {
+        return Result.ok(taskService.countByUserId(getUserId()));
     }
 
     @ApiOperation("创建新任务")

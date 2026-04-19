@@ -16,12 +16,21 @@ public interface TaskService {
     /**
      * 获取指定用户的任务列表（按创建时间倒序）
      *
-     * @param userId 用户ID
-     * @param page   页码
-     * @param size   每页大小
+     * @param userId  用户ID
+     * @param page    页码
+     * @param size    每页大小
+     * @param keyword 搜索关键字（搜索任务名称和列数据）
      * @return 任务分页结果
      */
-    IPage<Task> listByUserId(Long userId, int page, int size);
+    IPage<Task> listByUserId(Long userId, int page, int size, String keyword);
+
+    /**
+     * 获取指定用户的任务总数
+     *
+     * @param userId 用户ID
+     * @return 任务总数
+     */
+    long countByUserId(Long userId);
 
     /**
      * 获取任务详情（含行列数据），校验用户权限
