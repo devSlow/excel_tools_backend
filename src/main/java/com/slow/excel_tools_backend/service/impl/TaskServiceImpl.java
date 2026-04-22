@@ -93,7 +93,7 @@ public class TaskServiceImpl implements TaskService {
         
         // 兼容前端传 name 和 data 的情况
         if (task.getTitle() == null || task.getTitle().isEmpty()) {
-            task.setTitle("文本解析任务");
+            task.setTitle(java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
         }
         if (task.getRows() == null && task.getColumns() != null) {
             // 前端可能把数据放在 columns 里，需要从 Task 实体的其他字段处理
