@@ -50,10 +50,7 @@ public class TaskServiceImpl implements TaskService {
         }
         
         IPage<Task> result = taskMapper.selectPage(new Page<>(page, size), wrapper);
-        
-        System.out.println("========== listByUserId ==========");
-        System.out.println("userId=" + userId + ", keyword=" + keyword + ", total=" + result.getTotal());
-        
+
         return result;
     }
 
@@ -67,11 +64,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public Task getById(Long id, Long userId) {
         Task task = taskMapper.selectById(id);
-        System.out.println("========== getById ==========");
-        System.out.println("id=" + id + ", task=" + (task != null ? 
-            "title=" + task.getTitle() + ", columns=" + task.getColumns() + ", rows=" + task.getRows() 
-            : "null"));
-        
+
         // 校验任务是否存在
         if (task == null) {
             throw new BusinessException(2001, "任务不存在");
@@ -85,12 +78,6 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public Task create(Task task) {
-        System.out.println("========== TaskServiceImpl.create ==========");
-        System.out.println("task.title = " + task.getTitle());
-        System.out.println("task.columns = " + task.getColumns());
-        System.out.println("task.rows = " + task.getRows());
-        System.out.println("task.userId = " + task.getUserId());
-        
         // 兼容前端传 name 和 data 的情况
         if (task.getTitle() == null || task.getTitle().isEmpty()) {
             task.setTitle(java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
@@ -106,14 +93,7 @@ public class TaskServiceImpl implements TaskService {
             task.setUpdatedAt(java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).toLocalDateTime());
         }
         taskMapper.insert(task);
-        
-        // 重新查询验证
-        Task saved = taskMapper.selectById(task.getId());
-        System.out.println("========== After Insert ==========");
-        System.out.println("saved.title = " + saved.getTitle());
-        System.out.println("saved.columns = " + saved.getColumns());
-        System.out.println("saved.rows = " + saved.getRows());
-        
+
         return task;
     }
 

@@ -1,15 +1,20 @@
 package com.slow.excel_tools_backend.controller;
 
 import com.slow.excel_tools_backend.common.BusinessException;
+import com.slow.excel_tools_backend.common.JwtUtil;
 import com.slow.excel_tools_backend.common.Result;
+import com.slow.excel_tools_backend.config.WechatConfig;
 import com.slow.excel_tools_backend.entity.User;
 import com.slow.excel_tools_backend.service.UserService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,10 +27,17 @@ import java.util.Map;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final UserService userService;
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
-    public AuthController(UserService userService) {
+    private final UserService userService;
+    private final WechatConfig wechatConfig;
+
+    private static final String JSCODE2SESSION_URL =
+            "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code";
+
+    public AuthController(UserService userService, WechatConfig wechatConfig) {
         this.userService = userService;
+        this.wechatConfig = wechatConfig;
     }
 
     @ApiOperation("微信小程序登录")
@@ -36,12 +48,24 @@ public class AuthController {
             throw new BusinessException(3001, "登录code不能为空");
         }
 
-        // TODO: 调用微信 API 用 code 换取 openid，暂时用 code 作为 openid
-        String openid = code;
+        // 调用微信 API 用 code 换取 openid
+        String url = String.format(JSCODE2SESSION_URL,
+                wechatConfig.getAppid(), wechatConfig.getSecret(), code);
+
+        RestTemplate restTemplate = new RestTemplate();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> wxResult = restTemplate.getForObject(url, Map.class);
+
+        if (wxResult == null || wxResult.get("openid") == null) {
+            log.error("微信登录失败，微信返回: {}", wxResult);
+            throw new BusinessException(3002, "微信登录失败");
+        }
+
+        String openid = (String) wxResult.get("openid");
 
         User user = userService.loginOrRegister(openid);
 
-        String token = "token_" + user.getId() + "_" + System.currentTimeMillis();
+        String token = JwtUtil.generate(user.getId(), user.getOpenid());
 
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
