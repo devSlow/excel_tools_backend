@@ -24,7 +24,8 @@ public class BannerServiceImpl implements BannerService {
     public List<Banner> listActive() {
         LambdaQueryWrapper<Banner> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Banner::getStatus, 1)
-               .orderByAsc(Banner::getSortOrder);
+               .orderByAsc(Banner::getSortOrder)
+               .orderByDesc(Banner::getCreatedAt);
         return bannerMapper.selectList(wrapper);
     }
 }

@@ -21,12 +21,14 @@ CREATE TABLE IF NOT EXISTS task (
     INDEX idx_user_id (user_id)
 );
 
--- 轮播图表
+-- 轮播图/公告表
 CREATE TABLE IF NOT EXISTS banner (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL DEFAULT '',
     image_url VARCHAR(512) NOT NULL DEFAULT '',
     link_url VARCHAR(512) NOT NULL DEFAULT '',
+    content TEXT DEFAULT NULL,
+    type VARCHAR(32) NOT NULL DEFAULT 'info',
     sort_order INT NOT NULL DEFAULT 0,
     status TINYINT NOT NULL DEFAULT 1 COMMENT '1:启用 0:禁用',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

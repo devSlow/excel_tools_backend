@@ -32,6 +32,14 @@ public class Banner {
     @ApiModelProperty("跳转链接")
     private String linkUrl;
 
+    @TableField("content")
+    @ApiModelProperty("公告内容，HTML富文本")
+    private String content;
+
+    @TableField("type")
+    @ApiModelProperty("类型：info-一般通知/warning-警告/error-紧急")
+    private String type;
+
     @TableField("sort_order")
     @ApiModelProperty("排序顺序")
     private Integer sortOrder;
@@ -56,6 +64,10 @@ public class Banner {
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
     public String getLinkUrl() { return linkUrl; }
     public void setLinkUrl(String linkUrl) { this.linkUrl = linkUrl; }
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
     public Integer getStatus() { return status; }
@@ -64,4 +76,7 @@ public class Banner {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    @ApiModelProperty("是否启用")
+    public boolean getEnabled() { return status != null && status == 1; }
 }

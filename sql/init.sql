@@ -30,3 +30,18 @@ CREATE TABLE IF NOT EXISTS `task` (
     PRIMARY KEY (`id`),
     KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据任务表';
+
+-- 轮播图/公告表（统一管理轮播图和公告）
+CREATE TABLE IF NOT EXISTS `banner` (
+    `id`         BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'ID',
+    `title`      VARCHAR(255) NOT NULL DEFAULT ''      COMMENT '标题',
+    `image_url`  VARCHAR(512) NOT NULL DEFAULT ''      COMMENT '图片地址',
+    `link_url`   VARCHAR(512) NOT NULL DEFAULT ''      COMMENT '跳转链接',
+    `content`    TEXT         DEFAULT NULL             COMMENT '公告内容，HTML富文本',
+    `type`       VARCHAR(32)  NOT NULL DEFAULT 'info'  COMMENT '类型：info-一般通知/warning-警告/error-紧急',
+    `sort_order` INT          NOT NULL DEFAULT 0       COMMENT '排序顺序',
+    `status`     TINYINT      NOT NULL DEFAULT 1       COMMENT '状态 1:启用 0:禁用',
+    `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='轮播图/公告表';
