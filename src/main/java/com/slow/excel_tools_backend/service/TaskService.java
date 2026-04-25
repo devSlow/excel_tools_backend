@@ -104,4 +104,19 @@ public interface TaskService {
      * @param response     HTTP 响应
      */
     void exportExcelGroupBy(Long id, Long userId, String groupByField, HttpServletResponse response) throws IOException;
+
+    /**
+     * 后台管理：分页获取任务列表
+     */
+    IPage<Task> listPage(int page, int size, String keyword, Long userId);
+
+    /**
+     * 后台管理：获取任务计数
+     */
+    long countAll();
+
+    /**
+     * 后台管理：获取今日任务数
+     */
+    long countToday();
 }

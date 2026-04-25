@@ -65,7 +65,7 @@ public class ExcelParseService {
         // 上传至 MinIO 备份
         String objectName = "excel/" + UUID.randomUUID() + "/" + originalName;
         try {
-            minioService.upload(minioConfig.getBucket(), objectName,
+            minioService.upload(objectName,
                     file.getInputStream(), file.getContentType(), file.getSize());
         } catch (IOException e) {
             throw new BusinessException(4003, "文件读取失败");

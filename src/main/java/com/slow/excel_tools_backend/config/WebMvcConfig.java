@@ -6,9 +6,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Web MVC 配置
- * <p>
- * 注册认证拦截器，排除不需要鉴权的接口
- * </p>
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -21,13 +18,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // 只拦截小程序的用户相关接口，不拦截管理后台接口
         registry.addInterceptor(authInterceptor)
-                .addPathPatterns("/api/**")
-                .excludePathPatterns(
-                        "/api/auth/login",
-                        "/api/banner",
-                        "/api/parse/text/export",
-                        "/api/parse/excel/export"
-                );
+                .addPathPatterns("/api/auth/login")
+                .excludePathPatterns();
     }
 }

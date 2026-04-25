@@ -7,8 +7,11 @@ import io.minio.RemoveObjectArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import com.slow.excel_tools_backend.config.MinioConfig;
 
 import java.io.InputStream;
+import java.util.UUID;
 
 /**
  * MinIO 文件存储服务
@@ -19,21 +22,46 @@ public class MinioService {
     private static final Logger log = LoggerFactory.getLogger(MinioService.class);
 
     private final MinioClient minioClient;
+    private final String bucket;
+    private final String endpoint;
 
-    public MinioService(MinioClient minioClient) {
+    public MinioService(MinioClient minioClient, MinioConfig minioConfig) {
         this.minioClient = minioClient;
+        this.bucket = minioConfig.getBucket();
+        this.endpoint = minioConfig.getEndpoint();
     }
 
     /**
      * 上传文件
-     *
-     * @param bucket      桶名称
-     * @param objectName  对象名称（含路径，如 excel/xxx.xlsx）
-     * @param stream      文件输入流
-     * @param contentType 文件 MIME 类型
-     * @param size        文件大小（字节）
      */
-    public void upload(String bucket, String objectName, InputStream stream, String contentType, long size) {
+    public String upload(MultipartFile file, String prefix) {
+        try {
+            String originalFilename = file.getOriginalFilename();
+            String ext = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                ext = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String objectName = prefix + "/" + UUID.randomUUID().toString().replace("-", "") + ext;
+
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectName)
+                    .stream(file.getInputStream(), file.getSize(), -1)
+                    .contentType(file.getContentType())
+                    .build());
+
+            log.info("文件上传成功: bucket={}, object={}", bucket, objectName);
+            return endpoint + "/" + bucket + "/" + objectName;
+        } catch (Exception e) {
+            log.error("文件上传失败", e);
+            throw new RuntimeException("文件上传失败", e);
+        }
+    }
+
+    /**
+     * 上传文件（通过 InputStream）
+     */
+    public String upload(String objectName, InputStream stream, String contentType, long size) {
         try {
             minioClient.putObject(PutObjectArgs.builder()
                     .bucket(bucket)
@@ -41,47 +69,54 @@ public class MinioService {
                     .stream(stream, size, -1)
                     .contentType(contentType)
                     .build());
+
             log.info("文件上传成功: bucket={}, object={}", bucket, objectName);
+            return endpoint + "/" + bucket + "/" + objectName;
         } catch (Exception e) {
-            log.error("文件上传失败: bucket={}, object={}", bucket, objectName, e);
+            log.error("文件上传失败", e);
             throw new RuntimeException("文件上传失败", e);
         }
     }
 
     /**
-     * 下载文件
-     *
-     * @param bucket     桶名称
-     * @param objectName 对象名称
-     * @return 文件输入流
+     * 获取文件访问URL（预签名URL，24小时有效）
      */
-    public InputStream download(String bucket, String objectName) {
+    public String getFileUrl(String objectName) {
+        try {
+            return endpoint + "/" + bucket + "/" + objectName;
+        } catch (Exception e) {
+            log.error("获取文件URL失败: object={}", objectName, e);
+            throw new RuntimeException("获取文件URL失败", e);
+        }
+    }
+
+    /**
+     * 下载文件
+     */
+    public InputStream download(String objectName) {
         try {
             return minioClient.getObject(GetObjectArgs.builder()
                     .bucket(bucket)
                     .object(objectName)
                     .build());
         } catch (Exception e) {
-            log.error("文件下载失败: bucket={}, object={}", bucket, objectName, e);
+            log.error("文件下载失败: object={}", objectName, e);
             throw new RuntimeException("文件下载失败", e);
         }
     }
 
     /**
      * 删除文件
-     *
-     * @param bucket     桶名称
-     * @param objectName 对象名称
      */
-    public void remove(String bucket, String objectName) {
+    public void remove(String objectName) {
         try {
             minioClient.removeObject(RemoveObjectArgs.builder()
                     .bucket(bucket)
                     .object(objectName)
                     .build());
-            log.info("文件删除成功: bucket={}, object={}", bucket, objectName);
+            log.info("文件删除成功: object={}", objectName);
         } catch (Exception e) {
-            log.error("文件删除失败: bucket={}, object={}", bucket, objectName, e);
+            log.error("文件删除失败: object={}", objectName, e);
             throw new RuntimeException("文件删除失败", e);
         }
     }

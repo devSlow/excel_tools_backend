@@ -33,7 +33,7 @@ public class Result<T> {
 
     public static <T> Result<T> ok(T data) {
         Result<T> r = new Result<>();
-        r.setCode(0);
+        r.setCode(200);
         r.setMsg("success");
         r.setData(data);
         return r;

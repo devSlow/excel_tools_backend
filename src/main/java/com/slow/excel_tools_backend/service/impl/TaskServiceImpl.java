@@ -17,6 +17,9 @@ import org.springframework.stereotype.Service;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -280,5 +283,32 @@ public class TaskServiceImpl implements TaskService {
             writer.write(dataList, writeSheet);
         }
         writer.finish();
+    }
+
+    @Override
+    public IPage<Task> listPage(int page, int size, String keyword, Long userId) {
+        LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
+        wrapper.orderByDesc(Task::getCreatedAt);
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            wrapper.like(Task::getTitle, keyword.trim());
+        }
+        if (userId != null) {
+            wrapper.eq(Task::getUserId, userId);
+        }
+        return taskMapper.selectPage(new Page<>(page, size), wrapper);
+    }
+
+    @Override
+    public long countAll() {
+        return taskMapper.selectCount(new LambdaQueryWrapper<>());
+    }
+
+    @Override
+    public long countToday() {
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
+        LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
+        wrapper.between(Task::getCreatedAt, startOfDay, endOfDay);
+        return taskMapper.selectCount(wrapper);
     }
 }
