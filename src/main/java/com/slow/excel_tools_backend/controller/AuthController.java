@@ -6,16 +6,20 @@ import com.slow.excel_tools_backend.common.Result;
 import com.slow.excel_tools_backend.config.WechatConfig;
 import com.slow.excel_tools_backend.entity.User;
 import com.slow.excel_tools_backend.service.UserService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,6 +35,7 @@ public class AuthController {
 
     private final UserService userService;
     private final WechatConfig wechatConfig;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String JSCODE2SESSION_URL =
             "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code";
@@ -53,8 +58,16 @@ public class AuthController {
                 wechatConfig.getAppid(), wechatConfig.getSecret(), code);
 
         RestTemplate restTemplate = new RestTemplate();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> wxResult = restTemplate.getForObject(url, Map.class);
+        restTemplate.getMessageConverters().add(0, new StringHttpMessageConverter(StandardCharsets.UTF_8));
+        String wxResponse = restTemplate.getForObject(url, String.class);
+
+        Map<String, Object> wxResult;
+        try {
+            wxResult = objectMapper.readValue(wxResponse, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.error("微信登录响应解析失败: {}", wxResponse, e);
+            throw new BusinessException(3002, "微信登录失败");
+        }
 
         if (wxResult == null || wxResult.get("openid") == null) {
             log.error("微信登录失败，微信返回: {}", wxResult);
