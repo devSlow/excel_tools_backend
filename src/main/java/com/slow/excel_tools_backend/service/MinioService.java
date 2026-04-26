@@ -7,7 +7,6 @@ import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.BucketExistsArgs;
 import io.minio.GetPresignedObjectUrlArgs;
-import io.minio.SetBucketPolicyArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -43,13 +42,8 @@ public class MinioService {
                 minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
                 log.info("创建Bucket: {}", bucket);
             }
-            String policy = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Read\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::" + bucket + "/*\"]}]}";
-            minioClient.setBucketPolicy(SetBucketPolicyArgs.builder()
-                    .bucket(bucket)
-                    .config(policy)
-                    .build());
         } catch (Exception e) {
-            log.error("初始化Bucket失败: {}", bucket, e);
+            log.warn("初始化Bucket警告: {}", bucket, e.getMessage());
         }
     }
 
