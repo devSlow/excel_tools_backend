@@ -169,7 +169,16 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public void exportExcel(Long id, Long userId, String fileName, HttpServletResponse response) throws IOException {
-        Task task = getById(id, userId);
+        // userId可能为空（未登录导出的情况），跳过权限校验直接查询任务
+        Task task;
+        if (userId != null) {
+            task = getById(id, userId);
+        } else {
+            task = taskMapper.selectById(id);
+            if (task == null) {
+                throw new BusinessException(2001, "任务不存在");
+            }
+        }
 
         String exportFileName = (fileName != null && !fileName.trim().isEmpty()) 
             ? fileName 

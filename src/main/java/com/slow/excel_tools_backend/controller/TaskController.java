@@ -32,6 +32,14 @@ public class TaskController {
         return (Long) request.getAttribute("userId");
     }
 
+    private Long getUserIdSafe(HttpServletRequest request) {
+        try {
+            return getUserId(request);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @ApiOperation("获取我的任务列表")
     @GetMapping
     public Result<IPage<Task>> list(
@@ -97,11 +105,11 @@ public class TaskController {
     @ApiOperation("导出Excel（单Sheet）")
     @GetMapping("/{id}/export")
     public void export(
-            HttpServletRequest request,
             @ApiParam("任务ID") @PathVariable Long id,
             @ApiParam("导出文件名") @RequestParam(required = false) String fileName,
             HttpServletResponse response) throws IOException {
-        taskService.exportExcel(id, getUserId(request), fileName, response);
+        Long userId = getUserIdSafe(request);
+        taskService.exportExcel(id, userId, fileName, response);
     }
 
     @ApiOperation("按列分组导出Excel（多Sheet）")
