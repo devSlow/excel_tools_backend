@@ -108,8 +108,7 @@ public class TaskController {
             @ApiParam("任务ID") @PathVariable Long id,
             @ApiParam("导出文件名") @RequestParam(required = false) String fileName,
             HttpServletResponse response) throws IOException {
-        Long userId = getUserIdSafe(request);
-        taskService.exportExcel(id, userId, fileName, response);
+        taskService.exportExcel(id, null, fileName, response);
     }
 
     @ApiOperation("按列分组导出Excel（多Sheet）")
