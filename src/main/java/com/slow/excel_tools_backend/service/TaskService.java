@@ -33,6 +33,14 @@ public interface TaskService {
     long countByUserId(Long userId);
 
     /**
+     * 获取指定用户的所有数据行总数
+     *
+     * @param userId 用户ID
+     * @return 数据行总数
+     */
+    long countRowsByUserId(Long userId);
+
+    /**
      * 获取任务详情（含行列数据），校验用户权限
      *
      * @param id     任务ID

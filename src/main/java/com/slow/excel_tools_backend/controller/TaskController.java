@@ -48,6 +48,12 @@ public class TaskController {
         return Result.ok(taskService.countByUserId(getUserId(request)));
     }
 
+    @ApiOperation("获取我的数据行总数")
+    @GetMapping("/count/rows")
+    public Result<Long> countRows(HttpServletRequest request) {
+        return Result.ok(taskService.countRowsByUserId(getUserId(request)));
+    }
+
     @ApiOperation("创建新任务")
     @PostMapping
     public Result<Task> create(HttpServletRequest request, @RequestBody Task task) {

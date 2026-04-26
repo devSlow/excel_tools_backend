@@ -65,6 +65,18 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    public long countRowsByUserId(Long userId) {
+        List<Task> tasks = taskMapper.selectList(new LambdaQueryWrapper<Task>().eq(Task::getUserId, userId));
+        long total = 0;
+        for (Task task : tasks) {
+            if (task.getRows() != null) {
+                total += task.getRows().size();
+            }
+        }
+        return total;
+    }
+
+    @Override
     public Task getById(Long id, Long userId) {
         Task task = taskMapper.selectById(id);
 
