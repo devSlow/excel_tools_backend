@@ -10,43 +10,27 @@ import io.swagger.annotations.ApiModelProperty;
 import java.time.LocalDateTime;
 
 /**
- * 轮播图实体
+ * 公告实体
  */
-@TableName(value = "banner", autoResultMap = true)
-@ApiModel("轮播图")
-public class Banner {
+@TableName("notice")
+@ApiModel("公告")
+public class Notice {
 
     @TableId(type = IdType.AUTO)
-    @ApiModelProperty("轮播图ID")
+    @ApiModelProperty("公告ID")
     private Long id;
 
     @TableField("title")
     @ApiModelProperty("标题")
     private String title;
 
-    @TableField("image_url")
-    @ApiModelProperty("图片地址")
-    private String imageUrl;
-
-    @TableField("link_url")
-    @ApiModelProperty("跳转链接")
-    private String linkUrl;
-
-    @TableField("notice_id")
-    @ApiModelProperty("关联公告ID")
-    private Long noticeId;
-
     @TableField("content")
-    @ApiModelProperty("公告内容，HTML富文本")
+    @ApiModelProperty("内容")
     private String content;
 
-    @TableField("type")
-    @ApiModelProperty("类型：info-一般通知/warning-警告/error-紧急")
-    private String type;
-
-    @TableField("sort_order")
-    @ApiModelProperty("排序顺序")
-    private Integer sortOrder;
+    @TableField("priority")
+    @ApiModelProperty("优先级 0:普通 1:重要 2:紧急")
+    private Integer priority;
 
     @TableField("status")
     @ApiModelProperty("状态 1:启用 0:禁用")
@@ -64,25 +48,14 @@ public class Banner {
     public void setId(Long id) { this.id = id; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
-    public String getImageUrl() { return imageUrl; }
-    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
-    public String getLinkUrl() { return linkUrl; }
-    public void setLinkUrl(String linkUrl) { this.linkUrl = linkUrl; }
-    public Long getNoticeId() { return noticeId; }
-    public void setNoticeId(Long noticeId) { this.noticeId = noticeId; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
-    public Integer getSortOrder() { return sortOrder; }
-    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+    public Integer getPriority() { return priority; }
+    public void setPriority(Integer priority) { this.priority = priority; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
-
-    @ApiModelProperty("是否启用")
-    public boolean getEnabled() { return status != null && status == 1; }
 }
