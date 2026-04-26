@@ -6,6 +6,8 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.BucketExistsArgs;
+import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.SetBucketPolicyArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,9 +43,27 @@ public class MinioService {
                 minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
                 log.info("创建Bucket: {}", bucket);
             }
+            minioClient.setBucketPolicy(SetBucketPolicyArgs.builder()
+                    .bucket(bucket)
+                    .config(getReadOnlyPolicy(bucket))
+                    .build());
         } catch (Exception e) {
             log.error("初始化Bucket失败: {}", bucket, e);
         }
+    }
+
+    private String getReadOnlyPolicy(String bucket) {
+        return """
+            {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Read",
+                "Principal": "*",
+                "Action": ["s3:GetObject"],
+                "Resource": ["arn:aws:s3:::%s/*"]
+              }]
+            }
+            """.formatted(bucket);
     }
 
     /**
@@ -98,7 +118,11 @@ public class MinioService {
      */
     public String getFileUrl(String objectName) {
         try {
-            return endpoint + "/" + bucket + "/" + objectName;
+            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .bucket(bucket)
+                    .object(objectName)
+                    .expiry(24, java.time.temporal.ChronoUnit.HOURS)
+                    .build());
         } catch (Exception e) {
             log.error("获取文件URL失败: object={}", objectName, e);
             throw new RuntimeException("获取文件URL失败", e);
