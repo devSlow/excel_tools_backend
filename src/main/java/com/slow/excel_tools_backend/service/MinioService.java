@@ -43,27 +43,14 @@ public class MinioService {
                 minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
                 log.info("创建Bucket: {}", bucket);
             }
+            String policy = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Read\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::" + bucket + "/*\"]}]}";
             minioClient.setBucketPolicy(SetBucketPolicyArgs.builder()
                     .bucket(bucket)
-                    .config(getReadOnlyPolicy(bucket))
+                    .config(policy)
                     .build());
         } catch (Exception e) {
             log.error("初始化Bucket失败: {}", bucket, e);
         }
-    }
-
-    private String getReadOnlyPolicy(String bucket) {
-        return """
-            {
-              "Version": "2012-10-17",
-              "Statement": [{
-                "Effect": "Read",
-                "Principal": "*",
-                "Action": ["s3:GetObject"],
-                "Resource": ["arn:aws:s3:::%s/*"]
-              }]
-            }
-            """.formatted(bucket);
     }
 
     /**
@@ -121,7 +108,7 @@ public class MinioService {
             return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .bucket(bucket)
                     .object(objectName)
-                    .expiry(24, java.time.temporal.ChronoUnit.HOURS)
+                    .expiry(24 * 60 * 60)
                     .build());
         } catch (Exception e) {
             log.error("获取文件URL失败: object={}", objectName, e);
