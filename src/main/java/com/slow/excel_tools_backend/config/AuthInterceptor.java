@@ -30,6 +30,12 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
+        // 导出接口不鉴权
+        String uri = request.getRequestURI();
+        if (uri.contains("/export")) {
+            return true;
+        }
+
         String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (authHeader == null || authHeader.isEmpty()) {
             writeError(response, 4001, "未登录，请先登录");
