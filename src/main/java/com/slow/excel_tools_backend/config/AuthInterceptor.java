@@ -30,19 +30,23 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 导出接口不鉴权
+        // 导出接口不鉴权（允许浏览器直接下载）
         String uri = request.getRequestURI();
         if (uri.contains("/export")) {
             return true;
         }
 
+        String token = null;
         String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (authHeader == null || authHeader.isEmpty()) {
+        if (authHeader != null && !authHeader.isEmpty()) {
+            token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
+        } else {
+            token = request.getParameter("token");
+        }
+        if (token == null || token.isEmpty()) {
             writeError(response, 4001, "未登录，请先登录");
             return false;
         }
-
-        String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
         Claims claims = JwtUtil.parse(token);
         if (claims == null) {
             writeError(response, 4002, "登录已过期，请重新登录");

@@ -45,3 +45,20 @@ CREATE TABLE IF NOT EXISTS `banner` (
     `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='轮播图/公告表';
+
+CREATE TABLE IF NOT EXISTS `app_config` (
+    `id`             BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'ID',
+    `config_key`     VARCHAR(128) NOT NULL DEFAULT ''      COMMENT '配置键',
+    `config_value`   VARCHAR(512) NOT NULL DEFAULT ''      COMMENT '配置值',
+    `update_content` TEXT         DEFAULT NULL             COMMENT '更新公告内容',
+    `update_image`   VARCHAR(512) NOT NULL DEFAULT ''      COMMENT '更新公告插图',
+    `remark`         VARCHAR(255) NOT NULL DEFAULT ''      COMMENT '备注',
+    `created_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_config_key` (`config_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='应用配置表';
+
+INSERT INTO `app_config` (`config_key`, `config_value`, `update_content`, `update_image`, `remark`)
+VALUES ('app_version', '1.1.0', '', '', '小程序版本号')
+ON DUPLICATE KEY UPDATE `config_value` = VALUES(`config_value`);

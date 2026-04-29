@@ -46,8 +46,10 @@ public class TaskController {
             HttpServletRequest request,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String keyword) {
-        return Result.ok(taskService.listByUserId(getUserId(request), page, size, keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return Result.ok(taskService.listByUserId(getUserId(request), page, size, keyword, startDate, endDate));
     }
 
     @ApiOperation("获取我的任务总数")

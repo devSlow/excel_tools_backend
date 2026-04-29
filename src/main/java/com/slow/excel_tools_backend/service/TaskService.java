@@ -22,7 +22,7 @@ public interface TaskService {
      * @param keyword 搜索关键字（搜索任务名称和列数据）
      * @return 任务分页结果
      */
-    IPage<Task> listByUserId(Long userId, int page, int size, String keyword);
+    IPage<Task> listByUserId(Long userId, int page, int size, String keyword, String startDate, String endDate);
 
     /**
      * 获取指定用户的任务总数

@@ -5,25 +5,27 @@ import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.slow.excel_tools_backend.common.BusinessException;
 import com.slow.excel_tools_backend.common.ExcelStyleUtil;
-import com.slow.excel_tools_backend.entity.ColumnDefine;
-import com.slow.excel_tools_backend.entity.Task;
+import com.slow.excel_tools_backend.entity.*;
 import com.slow.excel_tools_backend.mapper.TaskMapper;
+import com.slow.excel_tools_backend.service.ExcelParseService;
 import com.slow.excel_tools_backend.service.TaskService;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -38,8 +40,8 @@ public class TaskServiceImpl implements TaskService {
         this.taskMapper = taskMapper;
     }
 
-@Override
-    public IPage<Task> listByUserId(Long userId, int page, int size, String keyword) {
+    @Override
+    public IPage<Task> listByUserId(Long userId, int page, int size, String keyword, String startDate, String endDate) {
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Task::getUserId, userId)
                .orderByDesc(Task::getCreatedAt);
@@ -52,12 +54,25 @@ public class TaskServiceImpl implements TaskService {
                           .like(Task::getRows, keyword.trim()));
         }
         
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        if (startDate != null && !startDate.isEmpty()) {
+            try {
+                LocalDateTime start = LocalDate.parse(startDate, formatter).atStartOfDay();
+                wrapper.ge(Task::getCreatedAt, start);
+            } catch (Exception ignored) {}
+        }
+        if (endDate != null && !endDate.isEmpty()) {
+            try {
+                LocalDateTime end = LocalDate.parse(endDate, formatter).atTime(LocalTime.MAX);
+                wrapper.le(Task::getCreatedAt, end);
+            } catch (Exception ignored) {}
+        }
+        
         IPage<Task> result = taskMapper.selectPage(new Page<>(page, size), wrapper);
-
         return result;
     }
 
-@Override
+    @Override
     public long countByUserId(Long userId) {
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Task::getUserId, userId);
