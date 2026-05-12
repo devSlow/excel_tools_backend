@@ -37,3 +37,8 @@ minio:
   access-key: admin
   secret-key: admin123456
   bucket: excel-tools
+
+# Gotenberg 配置
+gotenberg:
+  base-url: http://localhost:3000
+  timeout: 60
