@@ -40,5 +40,5 @@ minio:
 
 # Gotenberg 配置
 gotenberg:
-  base-url: http://localhost:9093
+  base-url: http://localhost:3000
   timeout: 60

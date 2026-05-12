@@ -100,22 +100,46 @@ public class GotenbergService {
     }
 
     public byte[] splitPdf(MultipartFile file, String splitMode, String splitSpan, boolean splitUnify) throws IOException {
-        MultipartBody requestBody = new MultipartBody.Builder()
+        System.out.println("=== GotenbergService.splitPdf ===");
+        System.out.println("文件名: " + file.getOriginalFilename());
+        System.out.println("文件大小: " + file.getSize() + " bytes");
+        System.out.println("Content-Type: " + file.getContentType());
+        System.out.println("拆分模式: " + splitMode);
+        System.out.println("间隔数/页码: " + splitSpan);
+        System.out.println("合并模式: " + splitUnify);
+        
+        MultipartBody.Builder builder = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("files", file.getOriginalFilename(),
                         RequestBody.create(file.getBytes(), MediaType.parse("application/pdf")))
-                .addFormDataPart("splitMode", splitMode)
-                .addFormDataPart("splitSpan", splitSpan)
-                .addFormDataPart("splitUnify", String.valueOf(splitUnify))
-                .build();
+                .addFormDataPart("splitMode", splitMode);
+        
+        // 根据模式添加 splitSpan
+        if ("intervals".equals(splitMode)) {
+            // intervals 模式：splitSpan 是间隔数
+            if (splitSpan != null && !splitSpan.isEmpty()) {
+                builder.addFormDataPart("splitSpan", splitSpan);
+            } else {
+                builder.addFormDataPart("splitSpan", "3"); // 默认间隔数
+            }
+        } else if ("pages".equals(splitMode)) {
+            // pages 模式：splitSpan 是页码范围，"1-" 表示所有页面
+            builder.addFormDataPart("splitSpan", "1-");
+        }
+        
+        // 总是传递 splitUnify 参数
+        builder.addFormDataPart("splitUnify", String.valueOf(splitUnify));
 
         Request request = new Request.Builder()
                 .url(gotenbergConfig.getBaseUrl() + "/forms/pdfengines/split")
-                .post(requestBody)
+                .post(builder.build())
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
+            System.out.println("Gotenberg 响应码: " + response.code());
             if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "";
+                System.out.println("Gotenberg 错误: " + errorBody);
                 throw new IOException("拆分失败: " + response.code() + " " + response.message());
             }
             return response.body().bytes();
@@ -540,6 +564,34 @@ public class GotenbergService {
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 throw new IOException(sourceType + "截图失败: " + response.code() + " " + response.message());
+            }
+            return response.body().bytes();
+        }
+    }
+
+    // ==================== PDF 转 Office ====================
+
+    /**
+     * PDF 转 Word/Excel/PPT
+     * @param file PDF文件
+     * @param targetFormat 目标格式: docx, xlsx, pptx
+     */
+    public byte[] convertPdfToOffice(MultipartFile file, String targetFormat) throws IOException {
+        MultipartBody requestBody = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("files", file.getOriginalFilename(),
+                        RequestBody.create(file.getBytes(), MediaType.parse("application/pdf")))
+                .addFormDataPart("targetFormat", targetFormat != null ? targetFormat : "docx")
+                .build();
+
+        Request request = new Request.Builder()
+                .url(gotenbergConfig.getBaseUrl() + "/forms/libreoffice/convert")
+                .post(requestBody)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("PDF转" + targetFormat + "失败: " + response.code() + " " + response.message());
             }
             return response.body().bytes();
         }
