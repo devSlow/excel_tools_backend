@@ -123,8 +123,12 @@ public class GotenbergService {
                 builder.addFormDataPart("splitSpan", "3"); // 默认间隔数
             }
         } else if ("pages".equals(splitMode)) {
-            // pages 模式：splitSpan 是页码范围，"1-" 表示所有页面
-            builder.addFormDataPart("splitSpan", "1-");
+            // pages 模式：splitSpan 是页码范围
+            if (splitSpan != null && !splitSpan.isEmpty()) {
+                builder.addFormDataPart("splitSpan", splitSpan);
+            } else {
+                builder.addFormDataPart("splitSpan", "1-"); // 默认所有页面
+            }
         }
         
         // 总是传递 splitUnify 参数

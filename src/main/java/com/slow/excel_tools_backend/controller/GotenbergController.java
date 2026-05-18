@@ -806,6 +806,31 @@ public class GotenbergController {
         }
     }
 
+    @ApiOperation("旋转PDF页面(返回下载链接)")
+    @PostMapping("/pdf/rotate/url")
+    public Result<String> rotatePdfUrl(
+            @ApiParam(value = "PDF文件", required = true) @RequestParam("file") MultipartFile file,
+            @ApiParam(value = "旋转角度: 90, 180, 270", required = true) @RequestParam("angle") int angle,
+            @ApiParam("页码范围(如: 1-3,5,7-10)") @RequestParam(value = "pages", required = false) String pages) {
+        try {
+            byte[] pdfBytes = gotenbergService.rotatePdf(file, angle, pages);
+            
+            // 生成唯一文件名
+            String uniqueFileName = UUID.randomUUID().toString() + ".pdf";
+            String tempDir = System.getProperty("java.io.tmpdir");
+            String filePath = tempDir + "/" + uniqueFileName;
+            
+            // 保存文件
+            java.nio.file.Files.write(java.nio.file.Paths.get(filePath), pdfBytes);
+            
+            // 返回下载链接
+            String downloadUrl = "/api/gotenberg/download/" + uniqueFileName;
+            return Result.ok(downloadUrl);
+        } catch (IOException e) {
+            return Result.fail("旋转失败: " + e.getMessage());
+        }
+    }
+
     // ==================== Chromium HTML转换 ====================
 
     @ApiOperation("网页转PDF - 统一接口")

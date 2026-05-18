@@ -89,3 +89,11 @@ VALUES ('欢迎使用Excel工具', '<p>欢迎使用Excel智能工具小程序！
 -- 示例：插入一条轮播图数据
 INSERT INTO `banner` (`title`, `image_url`, `link_url`, `content`, `type`, `sort_order`, `status`)
 VALUES ('Excel工具使用教程', 'https://example.com/banner1.png', '/pages/guide/index', '<h3>快速上手</h3><p>点击查看使用教程</p>', 'info', 1, 1);
+
+-- 2026-05-18: 扩展任务表以支持文件型任务（PDF拆分、旋转、合并等）
+-- 如果已存在该列则忽略（兼容已有数据库）
+ALTER TABLE `task`
+  ADD COLUMN `type` VARCHAR(50) DEFAULT NULL COMMENT '任务类型: parse_text, parse_excel, pdf_split, pdf_rotate, pdf_merge, pdf_encrypt, pdf_watermark, doc_convert, office_to_pdf, web_to_pdf, web_screenshot' AFTER `rows`,
+  ADD COLUMN `file_url` TEXT DEFAULT NULL COMMENT '文件下载URL(JSON)' AFTER `type`,
+  ADD COLUMN `source_file` VARCHAR(255) DEFAULT NULL COMMENT '源文件名' AFTER `file_url`,
+  ADD COLUMN `params` TEXT DEFAULT NULL COMMENT '任务参数JSON' AFTER `source_file`;

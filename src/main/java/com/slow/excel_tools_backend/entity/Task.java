@@ -39,6 +39,22 @@ public class Task {
     @ApiModelProperty("行数据")
     private List<Map<String, Object>> rows;
 
+    @TableField("type")
+    @ApiModelProperty("任务类型: parse_text, parse_excel, pdf_split, pdf_rotate, pdf_merge, pdf_encrypt, pdf_watermark, doc_convert, office_to_pdf, web_to_pdf, web_screenshot")
+    private String type;
+
+    @TableField("file_url")
+    @ApiModelProperty("文件下载URL(JSON)")
+    private String fileUrl;
+
+    @TableField("source_file")
+    @ApiModelProperty("源文件名")
+    private String sourceFile;
+
+    @TableField("params")
+    @ApiModelProperty("任务参数JSON")
+    private String params;
+
     @TableField("created_at")
     @ApiModelProperty("创建时间")
     private LocalDateTime createdAt;
@@ -57,6 +73,14 @@ public class Task {
     public void setColumns(List<ColumnDefine> columns) { this.columns = columns; }
     public List<Map<String, Object>> getRows() { return rows; }
     public void setRows(List<Map<String, Object>> rows) { this.rows = rows; }
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
+    public String getFileUrl() { return fileUrl; }
+    public void setFileUrl(String fileUrl) { this.fileUrl = fileUrl; }
+    public String getSourceFile() { return sourceFile; }
+    public void setSourceFile(String sourceFile) { this.sourceFile = sourceFile; }
+    public String getParams() { return params; }
+    public void setParams(String params) { this.params = params; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
