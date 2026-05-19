@@ -5,7 +5,6 @@ import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,7 +13,9 @@ import com.slow.excel_tools_backend.common.ExcelStyleUtil;
 import com.slow.excel_tools_backend.entity.*;
 import com.slow.excel_tools_backend.mapper.TaskMapper;
 import com.slow.excel_tools_backend.service.ExcelParseService;
+import com.slow.excel_tools_backend.service.MinioService;
 import com.slow.excel_tools_backend.service.TaskService;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletResponse;
@@ -35,9 +36,11 @@ import java.util.stream.Collectors;
 public class TaskServiceImpl implements TaskService {
 
     private final TaskMapper taskMapper;
+    private final MinioService minioService;
 
-    public TaskServiceImpl(TaskMapper taskMapper) {
+    public TaskServiceImpl(TaskMapper taskMapper, @Lazy MinioService minioService) {
         this.taskMapper = taskMapper;
+        this.minioService = minioService;
     }
 
     @Override
@@ -99,12 +102,14 @@ public class TaskServiceImpl implements TaskService {
         if (task == null) {
             throw new BusinessException(2001, "任务不存在");
         }
-        // 校验任务是否属于当前用户
-        if (!task.getUserId().equals(userId)) {
+        // 校验任务是否属于当前用户（userId 为 null 时跳过校验，用于后台管理）
+        if (userId != null && !task.getUserId().equals(userId)) {
             throw new BusinessException(2002, "无权访问该任务");
         }
         return task;
     }
+
+    private static final int MAX_TASKS_PER_USER = 3;
 
     @Override
     public Task create(Task task) {
@@ -124,7 +129,69 @@ public class TaskServiceImpl implements TaskService {
         }
         taskMapper.insert(task);
 
+        // 仅登录用户：保留最近 N 个任务，删除超出的旧任务及其文件
+        if (task.getUserId() != null) {
+            cleanupOldTasks(task.getUserId());
+        }
+
         return task;
+    }
+
+    /**
+     * 清理用户超出限制的旧任务，同时删除关联的 MinIO 文件
+     */
+    private void cleanupOldTasks(Long userId) {
+        LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Task::getUserId, userId)
+               .orderByDesc(Task::getCreatedAt)
+               .select(Task::getId, Task::getFileUrl);
+        List<Task> allTasks = taskMapper.selectList(wrapper);
+
+        if (allTasks.size() <= MAX_TASKS_PER_USER) {
+            return;
+        }
+
+        // 需要删除的旧任务
+        List<Task> toDelete = allTasks.subList(MAX_TASKS_PER_USER, allTasks.size());
+        List<Long> deleteIds = new ArrayList<>();
+        for (Task old : toDelete) {
+            deleteIds.add(old.getId());
+            // 尝试删除关联的 MinIO 文件
+            deleteTaskFiles(old.getFileUrl());
+        }
+
+        if (!deleteIds.isEmpty()) {
+            taskMapper.deleteBatchIds(deleteIds);
+        }
+    }
+
+    /**
+     * 从 fileUrl 字段解析出 MinIO 对象名并删除文件
+     */
+    private void deleteTaskFiles(String fileUrl) {
+        if (fileUrl == null || fileUrl.isEmpty()) return;
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            List<String> urls = mapper.readValue(fileUrl, new TypeReference<List<String>>() {});
+            for (String url : urls) {
+                deleteMinioFileByUrl(url);
+            }
+        } catch (Exception e) {
+            deleteMinioFileByUrl(fileUrl);
+        }
+    }
+
+    private void deleteMinioFileByUrl(String url) {
+        if (url == null || url.isEmpty()) return;
+        try {
+            String bucket = "excel-tools";
+            String marker = "/" + bucket + "/";
+            int idx = url.indexOf(marker);
+            if (idx >= 0) {
+                String objectName = url.substring(idx + marker.length());
+                minioService.remove(objectName);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override
@@ -141,6 +208,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public void delete(Long id, Long userId) {
         Task existing = getById(id, userId);
+        deleteTaskFiles(existing.getFileUrl());
         taskMapper.deleteById(existing.getId());
     }
 
