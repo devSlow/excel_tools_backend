@@ -5,6 +5,7 @@ import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -138,7 +139,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     /**
-     * 清理用户超出限制的旧任务，同时删除关联的 MinIO 文件
+     * 清理用户超出限制的旧任务：保留任务记录，但清除文件字段并删除 MinIO 文件
      */
     private void cleanupOldTasks(Long userId) {
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
@@ -151,17 +152,16 @@ public class TaskServiceImpl implements TaskService {
             return;
         }
 
-        // 需要删除的旧任务
-        List<Task> toDelete = allTasks.subList(MAX_TASKS_PER_USER, allTasks.size());
-        List<Long> deleteIds = new ArrayList<>();
-        for (Task old : toDelete) {
-            deleteIds.add(old.getId());
-            // 尝试删除关联的 MinIO 文件
+        // 超出限制的旧任务：删除 MinIO 文件，清除文件相关字段
+        List<Task> toClean = allTasks.subList(MAX_TASKS_PER_USER, allTasks.size());
+        for (Task old : toClean) {
             deleteTaskFiles(old.getFileUrl());
-        }
-
-        if (!deleteIds.isEmpty()) {
-            taskMapper.deleteBatchIds(deleteIds);
+            LambdaUpdateWrapper<Task> updateWrapper = new LambdaUpdateWrapper<>();
+            updateWrapper.eq(Task::getId, old.getId())
+                    .set(Task::getFileUrl, null)
+                    .set(Task::getSourceFile, null)
+                    .set(Task::getParams, null);
+            taskMapper.update(null, updateWrapper);
         }
     }
 

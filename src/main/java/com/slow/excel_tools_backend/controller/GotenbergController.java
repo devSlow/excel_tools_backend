@@ -3,9 +3,12 @@ package com.slow.excel_tools_backend.controller;
 import com.slow.excel_tools_backend.common.Result;
 import com.slow.excel_tools_backend.service.GotenbergService;
 import com.slow.excel_tools_backend.service.MinioService;
+import com.slow.excel_tools_backend.service.PdfToExcelService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,12 +26,16 @@ import java.util.ArrayList;
 @RequestMapping("/api/gotenberg")
 public class GotenbergController {
 
+    private static final Logger log = LoggerFactory.getLogger(GotenbergController.class);
+
     private final GotenbergService gotenbergService;
     private final MinioService minioService;
+    private final PdfToExcelService pdfToExcelService;
 
-    public GotenbergController(GotenbergService gotenbergService, MinioService minioService) {
+    public GotenbergController(GotenbergService gotenbergService, MinioService minioService, PdfToExcelService pdfToExcelService) {
         this.gotenbergService = gotenbergService;
         this.minioService = minioService;
+        this.pdfToExcelService = pdfToExcelService;
     }
 
     // ==================== 系统接口 ====================
@@ -62,25 +69,34 @@ public class GotenbergController {
             @ApiParam(value = "目标格式: pdf, docx, xlsx, pptx", required = true) @RequestParam("targetFormat") String targetFormat,
             @ApiParam("密码(可选)") @RequestParam(value = "password", required = false) String password,
             HttpServletResponse response) {
+        String filename = file.getOriginalFilename();
+        String sourceExt = filename != null && filename.contains(".")
+                ? filename.substring(filename.lastIndexOf(".") + 1).toLowerCase() : "";
+        log.info("[Controller] 收到转换请求: 文件={}, 目标格式={}", filename, targetFormat);
+        long start = System.currentTimeMillis();
         try {
             byte[] resultBytes;
-            String filename = file.getOriginalFilename();
-            String baseName = filename != null ? filename.substring(0, filename.lastIndexOf(".")) : "converted";
+            boolean isXlsxTarget = "xlsx".equalsIgnoreCase(targetFormat);
+            boolean isPdfSource = "pdf".equals(sourceExt);
+            boolean isWordSource = "doc".equals(sourceExt) || "docx".equals(sourceExt);
 
-            if ("pdf".equalsIgnoreCase(targetFormat)) {
-                resultBytes = password != null ? gotenbergService.convertToPdf(file, password) : gotenbergService.convertToPdf(file);
-                baseName += ".pdf";
-                response.setContentType("application/pdf");
+            if (isXlsxTarget && (isPdfSource || isWordSource)) {
+                log.info("[Controller] PDF/Word -> xlsx, 走本地提取逻辑");
+                resultBytes = pdfToExcelService.convertToXlsx(file);
             } else {
-                resultBytes = gotenbergService.convertPdfToOffice(file, targetFormat);
-                baseName += "." + targetFormat.toLowerCase();
-                String contentType = getOfficeContentType(targetFormat);
-                response.setContentType(contentType);
+                resultBytes = gotenbergService.convertDocument(file, targetFormat, password);
             }
 
+            String baseName = filename != null ? filename.substring(0, filename.lastIndexOf(".")) : "converted";
+            baseName += "." + targetFormat.toLowerCase();
+
+            String contentType = "pdf".equalsIgnoreCase(targetFormat) ? "application/pdf" : getOfficeContentType(targetFormat);
+            response.setContentType(contentType);
             response.setHeader("Content-Disposition", "attachment; filename=" + URLEncoder.encode(baseName, StandardCharsets.UTF_8));
             response.getOutputStream().write(resultBytes);
+            log.info("[Controller] 响应完成: 文件={}, 大小={}bytes, 总耗时={}ms", baseName, resultBytes.length, System.currentTimeMillis() - start);
         } catch (IOException e) {
+            log.error("[Controller] 转换异常: 耗时={}ms, 错误={}", System.currentTimeMillis() - start, e.getMessage(), e);
             response.setStatus(500);
             try {
                 response.getWriter().write("转换失败: " + e.getMessage());
@@ -95,26 +111,14 @@ public class GotenbergController {
             @ApiParam(value = "目标格式: pdf, docx, xlsx, pptx", required = true) @RequestParam("targetFormat") String targetFormat,
             @ApiParam("密码(可选)") @RequestParam(value = "password", required = false) String password) {
         try {
-            byte[] resultBytes;
-            String filename = file.getOriginalFilename();
-            String baseName = filename != null ? filename.substring(0, filename.lastIndexOf(".")) : "converted";
-            String ext;
-
-            if ("pdf".equalsIgnoreCase(targetFormat)) {
-                resultBytes = password != null ? gotenbergService.convertToPdf(file, password) : gotenbergService.convertToPdf(file);
-                ext = ".pdf";
-            } else {
-                resultBytes = gotenbergService.convertPdfToOffice(file, targetFormat);
-                ext = "." + targetFormat.toLowerCase();
-            }
-
-            // 上传到 MinIO
-            String objectName = "converted/" + UUID.randomUUID().toString() + ext;
-            String contentType = "pdf".equalsIgnoreCase(targetFormat) ? "application/pdf" : getOfficeContentType(targetFormat);
-            InputStream stream = new java.io.ByteArrayInputStream(resultBytes);
-            String downloadUrl = minioService.upload(objectName, stream, contentType, resultBytes.length);
-
-            return Result.ok(downloadUrl);
+            byte[] resultBytes = gotenbergService.convertDocument(file, targetFormat, password);
+            String ext = "." + targetFormat.toLowerCase();
+            String filename = UUID.randomUUID().toString() + ext;
+            String tempDir = System.getProperty("java.io.tmpdir");
+            java.io.File tempFile = new java.io.File(tempDir + "/" + filename);
+            java.nio.file.Files.write(tempFile.toPath(), resultBytes);
+            log.info("[Controller] 文件已保存到临时目录: {}", tempFile.getAbsolutePath());
+            return Result.ok("/api/gotenberg/download/" + filename);
         } catch (IOException e) {
             return Result.fail("转换失败: " + e.getMessage());
         }
@@ -161,7 +165,7 @@ public class GotenbergController {
             @ApiParam("密码(可选)") @RequestParam(value = "password", required = false) String password,
             HttpServletResponse response) {
         try {
-            byte[] pdfBytes = password != null ? gotenbergService.convertToPdf(file, password) : gotenbergService.convertToPdf(file);
+            byte[] pdfBytes = gotenbergService.convertDocument(file, "pdf", password);
             String filename = file.getOriginalFilename();
             if (filename != null) {
                 filename = filename.substring(0, filename.lastIndexOf(".")) + ".pdf";
@@ -186,7 +190,7 @@ public class GotenbergController {
             @ApiParam("目标格式: docx, xlsx, pptx") @RequestParam(value = "targetFormat", required = false, defaultValue = "docx") String targetFormat,
             HttpServletResponse response) {
         try {
-            byte[] bytes = gotenbergService.convertPdfToOffice(file, targetFormat);
+            byte[] bytes = gotenbergService.convertDocument(file, targetFormat, null);
             String filename = file.getOriginalFilename();
             if (filename != null) {
                 filename = filename.substring(0, filename.lastIndexOf(".")) + "." + targetFormat;
@@ -244,10 +248,12 @@ public class GotenbergController {
             @ApiParam(value = "PDF文件列表(至少2个)", required = true) @RequestParam("files") MultipartFile[] files) {
         try {
             byte[] pdfBytes = gotenbergService.mergePdfs(files);
-            String objectName = "converted/" + UUID.randomUUID().toString() + ".pdf";
-            InputStream stream = new java.io.ByteArrayInputStream(pdfBytes);
-            String downloadUrl = minioService.upload(objectName, stream, "application/pdf", pdfBytes.length);
-            return Result.ok(downloadUrl);
+            String filename = UUID.randomUUID().toString() + ".pdf";
+            String tempDir = System.getProperty("java.io.tmpdir");
+            java.io.File tempFile = new java.io.File(tempDir + "/" + filename);
+            java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
+            log.info("[Controller] 文件已保存到临时目录: {}", tempFile.getAbsolutePath());
+            return Result.ok("/api/gotenberg/download/" + filename);
         } catch (IOException e) {
             return Result.fail("合并失败: " + e.getMessage());
         }
@@ -305,17 +311,18 @@ public class GotenbergController {
             
             byte[] pdfBytes = gotenbergService.mergePdfs(files.toArray(new MultipartFile[0]));
             
-            // 上传到 MinIO
-            String objectName = "converted/" + UUID.randomUUID().toString() + ".pdf";
-            InputStream stream = new java.io.ByteArrayInputStream(pdfBytes);
-            String downloadUrl = minioService.upload(objectName, stream, "application/pdf", pdfBytes.length);
+            // 保存到临时目录
+            String filename = UUID.randomUUID().toString() + ".pdf";
+            java.io.File tempFile = new java.io.File(tempDir + "/" + filename);
+            java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
+            log.info("[Controller] 文件已保存到临时目录: {}", tempFile.getAbsolutePath());
             
             // 清理临时文件
-            for (String filename : filenameArray) {
-                new java.io.File(tempDir + "/" + filename.trim()).delete();
+            for (String fname : filenameArray) {
+                new java.io.File(tempDir + "/" + fname.trim()).delete();
             }
             
-            return Result.ok(downloadUrl);
+            return Result.ok("/api/gotenberg/download/" + filename);
         } catch (IOException e) {
             return Result.fail("合并失败: " + e.getMessage());
         }
@@ -365,42 +372,50 @@ public class GotenbergController {
             List<String> downloadUrls = new ArrayList<>();
 
             if (isZipFile(resultBytes)) {
-                // ZIP: 解压后逐个上传到 MinIO
-                String tempDir = System.getProperty("java.io.tmpdir");
-                String zipFileName = UUID.randomUUID().toString() + ".zip";
-                String zipFilePath = tempDir + "/" + zipFileName;
-                java.nio.file.Files.write(java.nio.file.Paths.get(zipFilePath), resultBytes);
-
-                try {
-                    String extractDir = tempDir + "/extract_" + UUID.randomUUID().toString();
-                    new java.io.File(extractDir).mkdirs();
-                    Process process = Runtime.getRuntime().exec(new String[]{"unzip", "-o", zipFilePath, "-d", extractDir});
-                    process.waitFor();
-
-                    java.io.File extractDirFile = new java.io.File(extractDir);
-                    java.io.File[] pdfFiles = extractDirFile.listFiles((dir, name) -> name.toLowerCase().endsWith(".pdf"));
-                    if (pdfFiles != null) {
-                        java.util.Arrays.sort(pdfFiles, (a, b) -> a.getName().compareTo(b.getName()));
-                        for (java.io.File pdfFile : pdfFiles) {
-                            byte[] fileBytes = java.nio.file.Files.readAllBytes(pdfFile.toPath());
-                            String objectName = "converted/" + UUID.randomUUID().toString() + ".pdf";
-                            InputStream stream = new java.io.ByteArrayInputStream(fileBytes);
-                            downloadUrls.add(minioService.upload(objectName, stream, "application/pdf", fileBytes.length));
+                // ZIP: 用Apache Commons Compress解压，兼容Go生成的ZIP格式
+                try (org.apache.commons.compress.archivers.zip.ZipArchiveInputStream zis = 
+                        new org.apache.commons.compress.archivers.zip.ZipArchiveInputStream(
+                            new java.io.ByteArrayInputStream(resultBytes), "UTF-8", false, true)) {
+                    org.apache.commons.compress.archivers.zip.ZipArchiveEntry entry;
+                    // 用TreeMap按文件名自然排序（保证页码顺序）
+                    java.util.TreeMap<String, byte[]> pdfFileMap = new java.util.TreeMap<>();
+                    
+                    while ((entry = zis.getNextZipEntry()) != null) {
+                        if (!entry.isDirectory() && entry.getName().toLowerCase().endsWith(".pdf")) {
+                            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                            byte[] buffer = new byte[4096];
+                            int len;
+                            while ((len = zis.read(buffer)) > 0) {
+                                baos.write(buffer, 0, len);
+                            }
+                            pdfFileMap.put(entry.getName(), baos.toByteArray());
                         }
                     }
-                    deleteDirectory(extractDirFile);
+                    
+                    // 按文件名排序后保存到临时目录
+                    String tempDir = System.getProperty("java.io.tmpdir");
+                    for (byte[] fileBytes : pdfFileMap.values()) {
+                        String filename = UUID.randomUUID().toString() + ".pdf";
+                        java.io.File tempFile = new java.io.File(tempDir + "/" + filename);
+                        java.nio.file.Files.write(tempFile.toPath(), fileBytes);
+                        downloadUrls.add("/api/gotenberg/download/" + filename);
+                    }
+                    
+                    if (pdfFileMap.isEmpty()) {
+                        throw new IOException("ZIP中没有找到PDF文件");
+                    }
                 } catch (Exception e) {
-                    // 解压失败，作为单个 PDF 处理
-                    String objectName = "converted/" + UUID.randomUUID().toString() + ".pdf";
-                    InputStream stream = new java.io.ByteArrayInputStream(resultBytes);
-                    downloadUrls.add(minioService.upload(objectName, stream, "application/pdf", resultBytes.length));
+                    System.err.println("ZIP解压失败: " + e.getMessage());
+                    e.printStackTrace();
+                    return Result.fail("拆分文件解压失败: " + e.getMessage());
                 }
-                new java.io.File(zipFilePath).delete();
             } else {
                 // 单个 PDF
-                String objectName = "converted/" + UUID.randomUUID().toString() + ".pdf";
-                InputStream stream = new java.io.ByteArrayInputStream(resultBytes);
-                downloadUrls.add(minioService.upload(objectName, stream, "application/pdf", resultBytes.length));
+                String filename = UUID.randomUUID().toString() + ".pdf";
+                String tempDir = System.getProperty("java.io.tmpdir");
+                java.io.File tempFile = new java.io.File(tempDir + "/" + filename);
+                java.nio.file.Files.write(tempFile.toPath(), resultBytes);
+                downloadUrls.add("/api/gotenberg/download/" + filename);
             }
 
             return Result.ok(downloadUrls);
@@ -583,10 +598,12 @@ public class GotenbergController {
             @ApiParam("所有者密码") @RequestParam(value = "ownerPassword", required = false) String ownerPassword) {
         try {
             byte[] pdfBytes = gotenbergService.encryptPdf(file, userPassword, ownerPassword);
-            String objectName = "converted/" + UUID.randomUUID().toString() + ".pdf";
-            InputStream stream = new java.io.ByteArrayInputStream(pdfBytes);
-            String downloadUrl = minioService.upload(objectName, stream, "application/pdf", pdfBytes.length);
-            return Result.ok(downloadUrl);
+            String filename = UUID.randomUUID().toString() + ".pdf";
+            String tempDir = System.getProperty("java.io.tmpdir");
+            java.io.File tempFile = new java.io.File(tempDir + "/" + filename);
+            java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
+            log.info("[Controller] 文件已保存到临时目录: {}", tempFile.getAbsolutePath());
+            return Result.ok("/api/gotenberg/download/" + filename);
         } catch (IOException e) {
             return Result.fail("加密失败: " + e.getMessage());
         }
@@ -650,15 +667,44 @@ public class GotenbergController {
             @ApiParam(value = "PDF文件", required = true) @RequestParam("file") MultipartFile file,
             @ApiParam(value = "水印类型: text, image, pdf", required = true) @RequestParam("source") String source,
             @ApiParam("水印内容/图片路径/PDF路径") @RequestParam(value = "expression", required = false) String expression,
-            @ApiParam("页码范围(如: 1-3,5,7-10)") @RequestParam(value = "pages", required = false) String pages) {
+            @ApiParam("页码范围(如: 1-3,5,7-10)") @RequestParam(value = "pages", required = false) String pages,
+            @ApiParam("图片水印文件") @RequestParam(value = "imageFile", required = false) MultipartFile imageFile) {
         try {
-            byte[] pdfBytes = gotenbergService.addWatermark(file, source, expression, pages);
-            String objectName = "converted/" + UUID.randomUUID().toString() + ".pdf";
-            InputStream stream = new java.io.ByteArrayInputStream(pdfBytes);
-            String downloadUrl = minioService.upload(objectName, stream, "application/pdf", pdfBytes.length);
-            return Result.ok(downloadUrl);
+            String finalExpression = expression;
+            if ("image".equals(source)) {
+                if (imageFile != null && !imageFile.isEmpty()) {
+                    String imageUrl = minioService.upload(imageFile, "watermark-images");
+                    String objectName = imageUrl.substring(imageUrl.indexOf("watermark-images"));
+                    finalExpression = minioService.getFileUrl(objectName);
+                } else if (expression != null && !expression.isEmpty() && expression.contains("watermark-images")) {
+                    String objectName = expression.substring(expression.indexOf("watermark-images"));
+                    finalExpression = minioService.getFileUrl(objectName);
+                }
+            }
+            byte[] pdfBytes = gotenbergService.addWatermark(file, source, finalExpression, pages);
+            String filename = UUID.randomUUID().toString() + ".pdf";
+            String tempDir = System.getProperty("java.io.tmpdir");
+            java.io.File tempFile = new java.io.File(tempDir + "/" + filename);
+            java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
+            log.info("[Controller] 文件已保存到临时目录: {}", tempFile.getAbsolutePath());
+            return Result.ok("/api/gotenberg/download/" + filename);
         } catch (IOException e) {
             return Result.fail("添加水印失败: " + e.getMessage());
+        }
+    }
+
+    @ApiOperation("上传水印图片")
+    @PostMapping("/watermark/image/upload")
+    public Result<String> uploadWatermarkImage(
+            @ApiParam(value = "图片文件", required = true) @RequestParam("file") MultipartFile file) {
+        try {
+            log.info("收到水印图片上传请求: name={}, size={}, contentType={}",
+                    file.getOriginalFilename(), file.getSize(), file.getContentType());
+            String url = minioService.upload(file, "watermark-images");
+            return Result.ok(url);
+        } catch (Exception e) {
+            log.error("上传水印图片失败", e);
+            return Result.fail("上传图片失败: " + e.getMessage());
         }
     }
 
@@ -723,10 +769,12 @@ public class GotenbergController {
             @ApiParam("页码范围(如: 1-3,5,7-10)") @RequestParam(value = "pages", required = false) String pages) {
         try {
             byte[] pdfBytes = gotenbergService.rotatePdf(file, angle, pages);
-            String objectName = "converted/" + UUID.randomUUID().toString() + ".pdf";
-            InputStream stream = new java.io.ByteArrayInputStream(pdfBytes);
-            String downloadUrl = minioService.upload(objectName, stream, "application/pdf", pdfBytes.length);
-            return Result.ok(downloadUrl);
+            String filename = UUID.randomUUID().toString() + ".pdf";
+            String tempDir = System.getProperty("java.io.tmpdir");
+            java.io.File tempFile = new java.io.File(tempDir + "/" + filename);
+            java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
+            log.info("[Controller] 文件已保存到临时目录: {}", tempFile.getAbsolutePath());
+            return Result.ok("/api/gotenberg/download/" + filename);
         } catch (IOException e) {
             return Result.fail("旋转失败: " + e.getMessage());
         }

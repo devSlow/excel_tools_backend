@@ -100,6 +100,7 @@ public class MinioService {
     public String getFileUrl(String objectName) {
         try {
             return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(io.minio.http.Method.GET)
                     .bucket(bucket)
                     .object(objectName)
                     .expiry(24 * 60 * 60)

@@ -2,6 +2,8 @@ package com.slow.excel_tools_backend.service;
 
 import com.slow.excel_tools_backend.config.GotenbergConfig;
 import okhttp3.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -10,6 +12,8 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 public class GotenbergService {
+
+    private static final Logger log = LoggerFactory.getLogger(GotenbergService.class);
 
     private final GotenbergConfig gotenbergConfig;
     private final OkHttpClient httpClient;
@@ -30,39 +34,69 @@ public class GotenbergService {
     // ==================== LibreOffice 文档转换 ====================
 
     /**
-     * 将 Office 文档转换为 PDF
-     * 支持: doc, docx, xls, xlsx, ppt, pptx, odt, ods, odp, etc.
+     * 通用文档转换（Office ↔ PDF，Office ↔ Office）
+     * 所有文件统一发给 Gotenberg LibreOffice 处理
      */
-    public byte[] convertToPdf(MultipartFile file) throws IOException {
-        return convertToPdf(file, null);
-    }
+    public byte[] convertDocument(MultipartFile file, String targetFormat, String password) throws IOException {
+        String sourceFilename = file.getOriginalFilename();
+        String sourceExt = sourceFilename != null && sourceFilename.contains(".")
+                ? sourceFilename.substring(sourceFilename.lastIndexOf(".") + 1).toLowerCase() : "unknown";
+        long sourceSize = file.getSize();
 
-    public byte[] convertToPdf(MultipartFile file, String password) throws IOException {
-        RequestBody requestBody = new MultipartBody.Builder()
+        log.info("[文档转换] ====== 开始 ======");
+        log.info("[文档转换] 源文件: {} (.{}, {}bytes)", sourceFilename, sourceExt, sourceSize);
+        log.info("[文档转换] 目标格式: {}", targetFormat);
+        log.info("[文档转换] 转换路径: .{} -> .{}", sourceExt, targetFormat);
+
+        // 判断转换类型
+        boolean isSourcePdf = "pdf".equals(sourceExt);
+        boolean isTargetPdf = "pdf".equals(targetFormat);
+        String conversionType;
+        if (isSourcePdf && !isTargetPdf) {
+            conversionType = "PDF -> Office (pdf2docx)";
+        } else if (!isSourcePdf && isTargetPdf) {
+            conversionType = "Office -> PDF (LibreOffice)";
+        } else if (!isSourcePdf && !isTargetPdf) {
+            conversionType = "Office -> Office (LibreOffice->PDF->pdf2docx)";
+        } else {
+            conversionType = "PDF -> PDF (LibreOffice)";
+        }
+        log.info("[文档转换] 转换类型: {}", conversionType);
+
+        MultipartBody.Builder builder = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("files", file.getOriginalFilename(),
-                        RequestBody.create(file.getBytes(), MediaType.parse("application/octet-stream")))
-                .build();
-
+                .addFormDataPart("files", sourceFilename,
+                        RequestBody.create(file.getBytes(), MediaType.parse("application/octet-stream")));
+        if (targetFormat != null && !targetFormat.isEmpty()) {
+            builder.addFormDataPart("targetFormat", targetFormat);
+        }
         if (password != null && !password.isEmpty()) {
-            requestBody = new MultipartBody.Builder()
-                    .setType(MultipartBody.FORM)
-                    .addFormDataPart("files", file.getOriginalFilename(),
-                            RequestBody.create(file.getBytes(), MediaType.parse("application/octet-stream")))
-                    .addFormDataPart("password", password)
-                    .build();
+            builder.addFormDataPart("password", password);
         }
 
+        String url = gotenbergConfig.getBaseUrl() + "/forms/libreoffice/convert";
+        log.info("[文档转换] 请求Gotenberg: {}", url);
+
         Request request = new Request.Builder()
-                .url(gotenbergConfig.getBaseUrl() + "/forms/libreoffice/convert")
-                .post(requestBody)
+                .url(url)
+                .post(builder.build())
                 .build();
 
+        long startTime = System.currentTimeMillis();
         try (Response response = httpClient.newCall(request).execute()) {
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.info("[文档转换] Gotenberg响应: HTTP {} | 耗时: {}ms", response.code(), elapsed);
+
             if (!response.isSuccessful()) {
-                throw new IOException("转换失败: " + response.code() + " " + response.message());
+                String errorBody = response.body() != null ? response.body().string() : "";
+                log.error("[文档转换] 转换失败: HTTP {} {} | 错误: {}", response.code(), response.message(), errorBody);
+                throw new IOException("文档转换失败: " + response.code() + " " + response.message() + " " + errorBody);
             }
-            return response.body().bytes();
+
+            byte[] resultBytes = response.body().bytes();
+            log.info("[文档转换] 转换成功: 结果文件 {}bytes", resultBytes.length);
+            log.info("[文档转换] ====== 结束 ======");
+            return resultBytes;
         }
     }
 
@@ -374,8 +408,33 @@ public class GotenbergService {
                 .addFormDataPart("files", file.getOriginalFilename(),
                         RequestBody.create(file.getBytes(), MediaType.parse("application/pdf")))
                 .addFormDataPart(prefix + "Source", source)
-                .addFormDataPart(prefix + "Expression", expression != null ? expression : "")
                 .addFormDataPart(prefix + "Pages", pages != null ? pages : "");
+
+        if ("image".equals(source) || "pdf".equals(source)) {
+            if (expression != null && !expression.isEmpty()) {
+                byte[] watermarkBytes;
+                String mediaType;
+                if (expression.startsWith("http")) {
+                    Request downloadReq = new Request.Builder().url(expression).build();
+                    try (Response downloadResp = httpClient.newCall(downloadReq).execute()) {
+                        if (!downloadResp.isSuccessful()) {
+                            throw new IOException("下载水印文件失败: " + downloadResp.code());
+                        }
+                        watermarkBytes = downloadResp.body().bytes();
+                        String contentType = downloadResp.header("Content-Type", "image/png");
+                        mediaType = contentType.split(";")[0].trim();
+                    }
+                } else {
+                    watermarkBytes = expression.getBytes();
+                    mediaType = "text/plain";
+                }
+                String ext = "pdf".equals(source) ? ".pdf" : ".png";
+                requestBodyBuilder.addFormDataPart(prefix, "watermark" + ext,
+                        RequestBody.create(watermarkBytes, MediaType.parse(mediaType)));
+            }
+        } else {
+            requestBodyBuilder.addFormDataPart(prefix + "Content", expression != null ? expression : "");
+        }
 
         Request request = new Request.Builder()
                 .url(gotenbergConfig.getBaseUrl() + "/forms/pdfengines/" + prefix)
@@ -384,7 +443,8 @@ public class GotenbergService {
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                throw new IOException("添加" + (prefix.equals("watermark") ? "水印" : "印章") + "失败: " + response.code() + " " + response.message());
+                String errorBody = response.body() != null ? response.body().string() : "";
+                throw new IOException("添加" + (prefix.equals("watermark") ? "水印" : "印章") + "失败: " + response.code() + " " + response.message() + " " + errorBody);
             }
             return response.body().bytes();
         }
@@ -574,32 +634,6 @@ public class GotenbergService {
     }
 
     // ==================== PDF 转 Office ====================
-
-    /**
-     * PDF 转 Word/Excel/PPT
-     * @param file PDF文件
-     * @param targetFormat 目标格式: docx, xlsx, pptx
-     */
-    public byte[] convertPdfToOffice(MultipartFile file, String targetFormat) throws IOException {
-        MultipartBody requestBody = new MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("files", file.getOriginalFilename(),
-                        RequestBody.create(file.getBytes(), MediaType.parse("application/pdf")))
-                .addFormDataPart("targetFormat", targetFormat != null ? targetFormat : "docx")
-                .build();
-
-        Request request = new Request.Builder()
-                .url(gotenbergConfig.getBaseUrl() + "/forms/libreoffice/convert")
-                .post(requestBody)
-                .build();
-
-        try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("PDF转" + targetFormat + "失败: " + response.code() + " " + response.message());
-            }
-            return response.body().bytes();
-        }
-    }
 
     // ==================== 系统 API ====================
 
